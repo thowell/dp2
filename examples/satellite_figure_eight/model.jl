@@ -13,7 +13,7 @@ struct Satellite{I, T} <: Model{I, T}
       J      # inertia matrix
 end
 
-function f(model::Satellite, z, u, w)
+function satellite(model::Satellite, z, u, w)
       # states
       r = view(z, 1:3)
       ω = view(z, 4:6)
@@ -23,6 +23,19 @@ function f(model::Satellite, z, u, w)
 
       SVector{6}([0.25 * ((1.0 - r' * r) * ω - 2.0 * cross(ω, r) + 2.0 * (ω' * r) * r);
                   model.J \ (τ - cross(ω, model.J * ω))])
+end
+
+function satellite_inertia(model::SatelliteInertia, z, u, w)
+    # states
+    r = view(z, 1:3)
+    ω = view(z, 4:6)
+
+    # controls
+    τ = view(u, 1:3)
+    J = Diagonal(view(u, 4:6))
+
+    SVector{6}([0.25 * ((1.0 - r' * r) * ω - 2.0 * cross(ω, r) + 2.0 * (ω' * r) * r);
+                J \ (τ - cross(ω, J * ω))])
 end
 
 function kinematics(model::Satellite, q)
