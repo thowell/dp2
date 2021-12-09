@@ -1,8 +1,16 @@
 [deps]
 DirectTrajectoryOptimization = "a9f42406-efe7-414c-8b71-df971cc98041"
+IterativeLQR = "605048dd-e178-462b-beb9-98a09398ef27"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MeshCat = "283c5d60-a78f-5afe-a0af-af636b173e11"
+RoboDojo = "2859eb88-988f-4613-a49e-c643bedbc906"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
-Symbolics = "0.1.29"
+DirectTrajectoryOptimization = "0.1.1"
+IterativeLQR = "0.1.0 - 0.1.0"
+MeshCat = "0.14.0 - 0.14.0"
+RoboDojo = "0.1.1"
+Symbolics = "0.1.29 - 0.1.29"
+
+
