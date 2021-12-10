@@ -22,10 +22,10 @@ function attitude_jacobian(x)
     return L_mult(x) * H
 end
 
-# rotate vector x by quaternion q
-function rotate(x, q) 
+# rotation matrix
+function rotation_matrix(q) 
     H = [zeros(1, 3); I(3)]
-    transpose(H) * L_mult(q) * transpose(R_mult(q)) * H * x 
+    transpose(H) * L_mult(q) * transpose(R_mult(q)) * H
 end
 
 # right discrete Legendre transform for a free rigid body
@@ -35,9 +35,9 @@ function DLT1(h, J, q1, q2)
 end
 
 # left discrete Legendre transform for a free rigid body
-function DLT2(h, J, q1,q2)
+function DLT2(h, J, q1, q2)
     H = [zeros(1, 3); I(3)]    
-    (2.0 / h) * transpose(attitude_jacobian(q2)) * L_mult(q1) * H * J * transpose(H) * transpose(L(q1)) * q2
+    (2.0 / h) * transpose(attitude_jacobian(q2)) * L_mult(q1) * H * J * transpose(H) * transpose(L_mult(q1)) * q2
 end
 
 # discrete Euler-Lagrange equation for a free rigid body

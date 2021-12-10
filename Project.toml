@@ -1,16 +1,25 @@
+name = "ParameterOptimization"
+uuid = "ebd6a39c-ff40-4eec-b7ea-a879d01e9e86"
+authors = ["thowell <thowell@stanford.edu>"]
+version = "0.1.0"
+
 [deps]
+CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
 DirectTrajectoryOptimization = "a9f42406-efe7-414c-8b71-df971cc98041"
+GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
 IterativeLQR = "605048dd-e178-462b-beb9-98a09398ef27"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MeshCat = "283c5d60-a78f-5afe-a0af-af636b173e11"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 RoboDojo = "2859eb88-988f-4613-a49e-c643bedbc906"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [compat]
 DirectTrajectoryOptimization = "0.1.1"
+GeometryBasics = "0.3.13"
 IterativeLQR = "0.1.0 - 0.1.0"
 MeshCat = "0.14.0 - 0.14.0"
+Plots = "1.23.6"
 RoboDojo = "0.1.1"
 Symbolics = "0.1.29 - 0.1.29"
-
-
+CoordinateTransformations = "0.6.2"

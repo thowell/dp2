@@ -1,5 +1,12 @@
-module parameter_optimization 
+module ParameterOptimization
     using LinearAlgebra
     using Symbolics
     using DirectTrajectoryOptimization
-end
+    using IterativeLQR
+    using RoboDojo
+    
+    using Plots 
+    using MeshCat 
+    using GeometryBasics
+    using CoordinateTransformations 
+end # module
