@@ -1,34 +1,35 @@
-"""
-	Cart-pole
-"""
+function double_integrator_1D(h, y, x, u, w) 
+    A = [1.0 h; 
+         0.0 1.0] 
+    B = [0.0; 1.0]
 
-struct Cartpole{I, T} <: Model{I, T}
-	n::Int
-    m::Int
-	d::Int
-
-    mc     # mass of the cart in kg
-    mp     # mass of the pole (point mass at the end) in kg
-    l      # length of the pole in m
-    g      # gravity m/s^2
+    y - (A * x + B * u[1])
 end
 
-function f(model::Cartpole, x, u, w)
-    H = @SMatrix [model.mc + model.mp model.mp * model.l * cos(x[2]);
-				  model.mp * model.l * cos(x[2]) model.mp * model.l^2.0]
-    C = @SMatrix [0.0 -1.0 * model.mp * x[4] * model.l * sin(x[2]);
-	 			  0.0 0.0]
-    G = @SVector [0.0,
-				  model.mp * model.g * model.l * sin(x[2])]
-    B = @SVector [1.0,
-				  0.0]
-    qdd = SVector{2}(-H \ (C * view(x, 3:4) + G - B * u[1]))
+function double_integrator_2D(h, y, x, u, w) 
+    A = [1.0 0.0 h   0.0; 
+         0.0 1.0 0.0 h; 
+         0.0 0.0 1.0 0.0;
+         0.0 0.0 0.0 1.0]
 
-    return @SVector [x[3],
-					 x[4],
-					 qdd[1],
-					 qdd[2]]
+    B = [0.0 0.0; 
+         0.0 0.0; 
+         1.0 0.0; 
+         0.0 1.0]
+
+    y - (A * x + B * u)
 end
 
-n, m, d = 4, 1, 4
-model = Cartpole{Midpoint, FixedTime}(n, m, d, 1.0, 0.2, 0.5, 9.81)
+function double_integrator_2D_forward(h, x, u, w) 
+     A = [1.0 0.0 h   0.0; 
+          0.0 1.0 0.0 h; 
+          0.0 0.0 1.0 0.0;
+          0.0 0.0 0.0 1.0]
+ 
+     B = [0.0 0.0; 
+          0.0 0.0; 
+          1.0 0.0; 
+          0.0 1.0]
+ 
+     A * x + B * u
+ end

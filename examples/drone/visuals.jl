@@ -1,45 +1,44 @@
-function visualize!(vis, model, q;
-    Δt = 0.1,
-    color = RGBA(1,0,0,1.0))
+function visualize_double_integrator_2D!(vis, Q;
+    Δt=0.1,
+    r=0.1, 
+    xT=[zero(q[end]) for q in Q],
+    color=RGBA(1,0,0,1.0),
+    color_goal=RGBA(0,1,0,1.0))
 
-    default_background!(vis)
+    N = length(Q)
+    T = length(Q[1])
 
-    l2 = Cylinder(Point3f0(-model.l * 2.5, 0.0, 0.0),
-        Point3f0(model.l * 2.5, 0.0, 0.0),
-        convert(Float32, 0.025))
+    setvisible!(vis["/Background"], true)
+	setprop!(vis["/Background"], "top_color", RGBA(1.0, 1.0, 1.0, 1.0))
+	setprop!(vis["/Background"], "bottom_color", RGBA(1.0, 1.0, 1.0, 1.0))
+	setvisible!(vis["/Axes"], false)
+	setvisible!(vis["/Grid"], false)
 
-    setobject!(vis["slider"], l2, MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
+    sphere = GeometryBasics.Sphere(Point(0.0,0.0,0.0), r)
+    sphere_goal = GeometryBasics.Sphere(Point(0.0,0.0,0.0), r)
 
-    l1 = Cylinder(Point3f0(0.0, 0.0, 0.0),
-        Point3f0(0.0, 0.0, model.l),
-        convert(Float32, 0.025))
+    for i = 1:N
+        setobject!(vis["goal_$i"], sphere_goal, MeshPhongMaterial(color=color_goal))
+        settransform!(vis["goal_$i"], Translation([xT[i][1]; 0.0; xT[i][2]]))
 
-    setobject!(vis["arm"], l1,
-        MeshPhongMaterial(color = RGBA(0.0, 0.0, 0.0, 1.0)))
-
-    setobject!(vis["base"], HyperSphere(Point3f0(0.0),
-        convert(Float32, 0.1)),
-        MeshPhongMaterial(color = color))
-
-    setobject!(vis["ee"], HyperSphere(Point3f0(0.0),
-        convert(Float32, 0.05)),
-        MeshPhongMaterial(color = color))
+        setobject!(vis["d$i"], sphere, MeshPhongMaterial(color=color))
+    end
 
     anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
 
-    for t = 1:length(q)
+    
+    for t = 1:T 
         MeshCat.atframe(anim,t) do
-            x = q[t]
-            px = x[1] + model.l * sin(x[2])
-            pz = -model.l * cos(x[2])
-            settransform!(vis["arm"], cable_transform([x[1]; 0;0], [px; 0.0; pz]))
-            settransform!(vis["base"], Translation([x[1]; 0.0; 0.0]))
-            settransform!(vis["ee"], Translation([px; 0.0; pz]))
+            for i = 1:N
+                settransform!(vis["d$i"], Translation([Q[i][t][1]; 0.0; Q[i][t][2]]))
+            end
         end
     end
 
+    # set camera
     settransform!(vis["/Cameras/default"],
-        compose(Translation(0.0, 0.0, -1.0), LinearMap(RotZ(- pi / 2))))
+        compose(Translation(0.0, -50.0, -1.0), LinearMap(RotZ(- pi / 2))))
+    setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 15)
 
     MeshCat.setanimation!(vis,anim)
 end

@@ -16,7 +16,7 @@ nu = satellite.nu
 nw = satellite.nw
 
 # ## horizon 
-T = 101
+T = 21
 
 # ## model
 h = 0.05

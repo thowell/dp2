@@ -9,4 +9,5 @@ module ParameterOptimization
     using MeshCat 
     using GeometryBasics
     using CoordinateTransformations 
+    using Rotations
 end # module
