@@ -18,6 +18,8 @@ nw = drone.nw
 # ## initialization
 x1 = [0.0; 0.0; 0.0; 0.0; 0.0; 0.0] 
 xT = [1.0; 1.0; 0.0; 0.0; 0.0; 0.0]
+θ_angle = 0.25 
+u_hover = hover_controls(drone, θ_angle)
 
 # ## linear policy 
 # function policy(θ, x) 
@@ -93,38 +95,55 @@ model = DirectTrajectoryOptimization.DynamicsModel(dyn)
 # ## objective 
 function o1(x, u, w)
     J = 0.0
-    J += 1.0 * dot(x - xT, x - xT) 
-    # J += 1.0e-2 * dot(u[1:nu], u[1:nu]) 
+    q = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    ex = x - xT
+    J += 0.5 * transpose(ex) * Diagonal(q) * ex
+    J += 1.0e-2 * dot(u[1:nu] - u_hover, u[1:nu] - u_hover) 
     J += 1.0e-1 * dot(u[nu .+ (1:nθ)], u[nu .+ (1:nθ)])
     return J
 end
 
 function ot(x, u, w) 
     J = 0.0
-    J += 1.0 * dot(x[1:nx] - xT, x[1:nx] - xT) 
-    # J += 1.0e-2 * dot(u, u) 
+    q = [10.0, 10.0, 10.0, 1.0, 1.0, 1.0]
+    ex = x[1:nx] - xT
+    J += 0.5 * transpose(ex) * Diagonal(q) * ex 
+    J += 1.0e-2 * dot(u - u_hover, u_hover) 
+    J += 1.0e-1 * dot(x[nx .+ (1:nθ)], x[nx .+ (1:nθ)])
+    return J 
+end
+
+function ott(x, u, w) 
+    J = 0.0
+    q = [100.0, 100.0, 100.0, 1.0, 1.0, 1.0]
+    ex = x[1:nx] - xT
+    J += 0.5 * transpose(ex) * Diagonal(q) * ex 
+    J += 1.0e-2 * dot(u - u_hover, u_hover) 
     J += 1.0e-1 * dot(x[nx .+ (1:nθ)], x[nx .+ (1:nθ)])
     return J 
 end
 
 function oT(x, u, w) 
     J = 0.0
-    J += 1000.0 * dot(x[1:nx] - xT, x[1:nx] - xT) 
+    q = [1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0]
+    ex = x[1:nx] - xT
+    J += 0.5 * transpose(ex) * Diagonal(q) * ex 
     J += 1.0e-1 * dot(x[nx .+ (1:nθ)], x[nx .+ (1:nθ)])
     return J 
 end
 
 c1 = DirectTrajectoryOptimization.Cost(o1, nx, nu + nθ, nw, [1])
-ct = DirectTrajectoryOptimization.Cost(ot, nx + nθ, nu, nw, [t for t = 2:T-1])
+ct = DirectTrajectoryOptimization.Cost(ot, nx + nθ, nu, nw, [t for t = 2:16])
+ctt = DirectTrajectoryOptimization.Cost(ott, nx + nθ, nu, nw, [t for t = 17:(T-1)])
 cT = DirectTrajectoryOptimization.Cost(oT, nx + nθ, 0, nw, [T])
-obj = [c1, ct, cT]
+obj = [c1, ct, ctt, cT]
 
 # ## constraints
 ul = [0.0; -0.5 * π; 0.0; -0.5 * π] 
-uu = [100.0; 0.5 * π; 100.0; 0.5 * π]
+uu = [10.0; 0.5 * π; 10.0; 0.5 * π]
 bnd1 = Bound(nx, nu + nθ, [1], xl=x1, xu=x1, ul=[ul; -Inf * ones(nθ)], uu=[uu; Inf * ones(nθ)])
 bndt = Bound(nx + nθ, nu, [t for t = 2:T-1], ul=ul, uu=uu)
-bndT = Bound(nx + nθ, 0, [T], xl=[xT; -Inf * ones(nθ)], xu=[xT; Inf * ones(nθ)])
+# bndT = Bound(nx + nθ, 0, [T], xl=[xT; -Inf * ones(nθ)], xu=[xT; Inf * ones(nθ)])
 
 function policy1(x, u, w) 
     θ = u[nu .+ (1:nθ)]
@@ -151,8 +170,8 @@ s = Solver(trajopt,
     ))
 
 # ## initialize
-θ0 = randn(nθ)
-u_guess = [[0.001 * randn(nu); θ0], [0.001 * randn(nu) for t = 2:T-1]...]
+θ0 = 0.001 * randn(nθ)
+u_guess = [[u_hover; θ0], [u_hover for t = 2:T-1]...]
 z0 = zeros(s.p.num_var)
 for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
     z0[idx] = t == 1 ? x1 : [x1; randn(nθ)]
@@ -187,7 +206,7 @@ plot([x[1] for x in trajopt.x], [x[2] for x in trajopt.x], label="", color=:blac
 include("visuals.jl")
 vis = Visualizer()
 open(vis) 
-visualize!(vis, drone, [trajopt.x], [trajopt.u]; Δt=h, xT=[xT])
+visualize_drone!(vis, drone, [trajopt.x], [[trajopt.u[1:end-1]..., trajopt.u[end-1]]]; Δt=h, xT=[xT])
 
 # ## simulate policy 
 x_hist = [x1] 

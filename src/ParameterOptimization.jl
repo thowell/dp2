@@ -4,6 +4,7 @@ module ParameterOptimization
     using DirectTrajectoryOptimization
     using IterativeLQR
     using RoboDojo
+    using JLD2
     
     using Plots 
     using MeshCat 
