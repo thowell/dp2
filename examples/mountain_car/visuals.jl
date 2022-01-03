@@ -35,9 +35,11 @@ function visualize_mountain_car!(vis, model::MountainCar, x; mesh=false, Δt=0.1
     end
 
     anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
-    p1 = [0.1; 0.0] 
-    p2 = [-0.1; 0.0] 
-    p3 = [-0.1; 0.0]
+    p1 = [0.085; 0.0] 
+    p2 = [-0.085; 0.0] 
+    p3 = [-0.085; 0.0]
+
+    shift = [0.005; -0.01]
 
     for t = 1:length(x)
         dir = surface_normal(x[t][1]) 
@@ -45,28 +47,28 @@ function visualize_mountain_car!(vis, model::MountainCar, x; mesh=false, Δt=0.1
         mat = rotation_matrix(ang)
 
         scaling = 0.0
-        c1 = transpose(mat) * p1 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir
-        c2 = transpose(mat) * p2 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir
-        c3 = transpose(mat) * p3 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir
+        c1 = transpose(mat) * p1 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir + shift
+        c2 = transpose(mat) * p2 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir + shift
+        c3 = transpose(mat) * p3 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir + shift
 
         s1 = sin(3.0 * c1[1])
         s2 = sin(3.0 * c2[1])
         s3 = sin(3.0 * c3[1])
 
-        # # shift down
-        # k = 1 
-        # while k < 100 && c1[2] > s1 && c2[2] > s2 && c3[2] > s3
-        #     scaling -= 0.001
-        #     k += 1
+        # shift down
+        k = 1 
+        while k < 100 && c1[2] > s1 && c2[2] > s2 && c3[2] > s3
+            scaling -= 0.001
+            k += 1
 
-        #     c1 = transpose(mat) * p1 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir
-        #     c2 = transpose(mat) * p2 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir
-        #     c3 = transpose(mat) * p3 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir
+            c1 = transpose(mat) * p1 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir + shift
+            c2 = transpose(mat) * p2 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir + shift
+            c3 = transpose(mat) * p3 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir + shift
 
-        #     s1 = sin(3.0 * c1[1])
-        #     s2 = sin(3.0 * c2[1])
-        #     s3 = sin(3.0 * c3[1])
-        # end
+            s1 = sin(3.0 * c1[1])
+            s2 = sin(3.0 * c2[1])
+            s3 = sin(3.0 * c3[1])
+        end
 
         # shift up 
         k = 1 
@@ -74,19 +76,19 @@ function visualize_mountain_car!(vis, model::MountainCar, x; mesh=false, Δt=0.1
             scaling += 0.001
             k += 1
 
-            c1 = transpose(mat) * p1 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir
-            c2 = transpose(mat) * p2 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir
-            #c3 = transpose(mat) * p3 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir
+            c1 = transpose(mat) * p1 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir + shift
+            c2 = transpose(mat) * p2 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir + shift
+            #c3 = transpose(mat) * p3 + [x[t][1]; sin(3.0 * x[t][1])] + scaling * dir + shift
 
             s1 = sin(3.0 * c1[1])
             s2 = sin(3.0 * c2[1])
            # s3 = sin(3.0 * c3[1])
         end
         @show scaling
-        shift = scaling * dir
+        curve_shift = scaling * dir
         MeshCat.atframe(anim,t) do
             settransform!(vis["car"],
-                compose(Translation(x[t][1] + shift[1], 0.0, sin(3.0 * x[t][1]) + shift[2]),
+                compose(Translation(x[t][1] + curve_shift[1] + shift[1], 0.0, sin(3.0 * x[t][1]) + curve_shift[2] + shift[2]),
                     LinearMap(RotY(ang) * RotZ(pi + 0.0 * pi / 2) * RotX(pi / 2.0))))
         end
     end
