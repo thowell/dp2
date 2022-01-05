@@ -14,6 +14,7 @@ include("model.jl")
 nx = satellite.nx
 nu = satellite.nu
 nw = satellite.nw
+nθ = 3
 
 # ## horizon 
 T = 40
@@ -36,9 +37,11 @@ pf = [RotZ(0.0 * π) * [xf[t]; yf[t]; zf[t]] for t = 1:T]
 
 # ## model
 h = 0.1
+dyn = DirectTrajectoryOptimization.Dynamics{Float64}[]
 dyn = [DirectTrajectoryOptimization.Dynamics(
-        (y, x, u, w) -> dynamics(satellite, h, satellite.J, y, x, u, w), 
-        nx, nx, nu) for t = 1:T-1] 
+        (t == 1 ? (y, x, u, w) -> [dynamics(satellite, h, Diagonal(u[nu .+ (1:nθ)]), y[1:nx], x[1:nx], u[1:nu], w); y[nx .+ (1:nθ)] -  u[nu .+ (1:nθ)]]
+         : (y, x, u, w) -> [dynamics(satellite, h, Diagonal(x[nx .+ (1:nθ)]), y[1:nx], x[1:nx], u[1:nu], w); y[nx .+ (1:nθ)] -  x[nx .+ (1:nθ)]]), 
+        nx + nθ, nx + (t == 1 ? 0 : nθ), nu + (t == 1 ? nθ : 0)) for t = 1:T-1] 
 model = DirectTrajectoryOptimization.DynamicsModel(dyn)
 
 # ## initialization
@@ -77,9 +80,10 @@ for t = 1:T-1
         q2 = x[4 .+ (1:4)]
         ω = angular_velocity(h, q1, q2)
         k = kinematics(satellite, q2)
-        1.0e-3 * transpose(ω) * satellite.J * ω + 1.0e-3 * dot(u, u) + 10000.0 * dot(k - pf[t], k - pf[t])
+        J = (t == 1 ? Diagonal(u[nu .+ (1:nθ)]) : Diagonal(x[nx .+ (1:nθ)]))
+        1.0e-3 * transpose(ω) * J * ω + 1.0e-3 * dot(u, u) + 1000.0 * dot(k - pf[t], k - pf[t]) + 1.0e-5 * dot(x[1:nx] - xT, x[1:nx] - xT)
     end
-    push!(obj, DirectTrajectoryOptimization.Cost(ot, nx, nu, nw, [t]))
+    push!(obj, DirectTrajectoryOptimization.Cost(ot, nx + (t == 1 ? 0 : nθ), nu + (t == 1 ? nθ : 0), nw, [t]))
 end
 
 function oT(x, u, w)
@@ -87,18 +91,20 @@ function oT(x, u, w)
     q2 = x[4 .+ (1:4)]
     ω = angular_velocity(h, q1, q2)
     k = kinematics(satellite, q2)
-    1.0e-3 * transpose(ω) * satellite.J * ω + 10000.0 * dot(k - pf[T], k - pf[T])
+    J = Diagonal(x[nx .+ (1:nθ)])
+    1.0e-3 * transpose(ω) * J * ω + 1000.0 * dot(k - pf[T], k - pf[T]) + 1.0e-5 * dot(x[1:nx] - xT, x[1:nx] - xT)
 end
 
-push!(obj, DirectTrajectoryOptimization.Cost(oT, nx, 0, nw, [T]))
+push!(obj, DirectTrajectoryOptimization.Cost(oT, nx + nθ, 0, nw, [T]))
 
 # ## constraints
 ul = -10.0 * ones(nu) 
 uu = 10.0 * ones(nu)
-bnd1 = Bound(nx, nu, [1], xl=x1, xu=x1, ul=ul, uu=uu)
-bndt = Bound(nx, nu, [t for t = 2:T-1], ul=ul, uu=uu)
-bndT = Bound(nx, 0, [T], xl=xT, xu=xT)
-
+Jl = 0.5 * diag(satellite.J) 
+Ju = 2.0 * diag(satellite.J)
+bnd1 = Bound(nx, nu + nθ, [1], xl=x1, xu=x1, ul=[ul; Jl], uu=[uu; Ju])
+bndt = Bound(nx + nθ, nu, [t for t = 2:T-1], xl=[-Inf * ones(nx); Jl], xu=[Inf * ones(nx); Ju], ul=ul, uu=uu)
+bndT = Bound(nx + nθ, 0, [T], xl=[xT; Jl] , xu=[xT; Ju])
 
 # ## figure 8
 # stage_cons = DirectTrajectoryOptimization.StageConstraint{Float64}[]
@@ -139,10 +145,11 @@ s = Solver(trajopt,
     ))
 
 # ## initialize
-u_guess = [0.1 * randn(nu) for t = 1:T-1]
+J_init = copy(diag(satellite.J))
+u_guess = [[0.1 * randn(nu); J_init], [0.1 * randn(nu) for t = 2:T-1]...]
 z0 = zeros(s.p.num_var)
 for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
-    z0[idx] = x1
+    z0[idx] = (t == 1 ? x1 : [x1; J_init])
 end
 for (t, idx) in enumerate(s.p.trajopt.model.idx.u)
     z0[idx] = u_guess[t]
@@ -153,6 +160,7 @@ initialize!(s, z0)
 @time DirectTrajectoryOptimization.solve!(s)
 
 # ## solution
+@show trajopt.u[1][nu .+ (1:nθ)]
 @show trajopt.x[1]
 @show trajopt.x[T]
 q_sol = [trajopt.x[1][1:4], [x[4 .+ (1:4)] for x in trajopt.x]...]
@@ -161,10 +169,10 @@ q_sol = [trajopt.x[1][1:4], [x[4 .+ (1:4)] for x in trajopt.x]...]
 @show DirectTrajectoryOptimization.eval_obj(obj, trajopt.x, trajopt.u, trajopt.w)
 
 # ## state
-plot(hcat(trajopt.x...)', label = "", color = :orange, width=2.0)
+plot(hcat([x[1:nx] for x in trajopt.x]...)', label = "", color = :orange, width=2.0)
 
 # ## control
-plot(hcat(trajopt.u[1:end-1]..., trajopt.u[end-1])', linetype = :steppost)
+plot(hcat([u[1:nu] for u in trajopt.u[1:end-1]]..., trajopt.u[end-1][1:nu])', linetype = :steppost)
 
 # ## visualization 
 include("visuals.jl")
@@ -183,5 +191,5 @@ for t = 1:T
 	push!(points, Point(_p...))
 end
 
-line_mat = LineBasicMaterial(color=color=RGBA(1.0, 1.0, 1.0, 1.0), linewidth=5)
+line_mat = LineBasicMaterial(color=color=RGBA(1.0, 1.0, 1.0, 1.0), linewidth=25)
 setobject!(vis[:figure8], MeshCat.Line(points, line_mat))

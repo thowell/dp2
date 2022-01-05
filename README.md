@@ -1,10 +1,10 @@
-# Parameter Trajectory Optimization
+# Parameter + Trajectory Optimization
 This repository contains examples from our paper: "Parameter + Trajectory Optimization" 
 
 ## Satellite 
 
-## Quadruped 
+## Mountain Car
 
 ## Drone 
 
-## Quadrotor 
+## Quadruped 

@@ -1,6 +1,6 @@
 
 # visuals
-function visualize!(vis, p::Satellite, q; Δt = 0.1)
+function visualize_satellite!(vis, p::Satellite, q; Δt = 0.1)
 	setvisible!(vis["/Background"], true)
 	setprop!(vis["/Background"], "top_color", RGBA(0.0, 0.0, 0.0, 1.0))
 	setprop!(vis["/Background"], "bottom_color", RGBA(0.0, 0.0, 0.0, 1.0))
