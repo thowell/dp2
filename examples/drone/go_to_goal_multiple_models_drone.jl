@@ -309,8 +309,8 @@ visualize_drone!(vis, drone, X_sol, U_sol; Δt=h, xT=xT)
 i = 1
 x_init = x1[i] 
 x_goal = xT[i]
-x_init = [2.0; 0.0; 0.0; 0.0; 0.0; 0.0]
-x_goal = [0.0; 0.0; 0.0; 0.0; 0.0; 0.0]
+x_init = [0.0; -0.6; 0.0; 0.0; 0.0; 0.0]
+x_goal = [0.5; 0.5; 0.0; 0.0; 0.0; 0.0]
 x_hist = [x_init] 
 u_hist = [u_hover]
 
@@ -322,5 +322,5 @@ end
 visualize_drone!(vis, drone, [x_hist], [u_hist]; Δt=h, xT=[x_goal])
 
 # ## save policy
-@save joinpath(@__DIR__, "policy.jld2") θ_sol
+# @save joinpath(@__DIR__, "policy.jld2") θ_sol
 @load joinpath(@__DIR__, "policy.jld2") θ_sol

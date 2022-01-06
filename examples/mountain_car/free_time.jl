@@ -17,7 +17,7 @@ nw = mountain_car.nw
 nθ = 1
 
 # ## horizon 
-T = 301
+T = 201
 
 # ## model
 function f1(y, x, u, w)
@@ -116,6 +116,7 @@ plot(hcat([x[1:nx] for x in trajopt.x]...)', label="", color=:orange, width=2.0)
 plot(hcat([u[1:nu] for u in trajopt.u[1:end-1]]..., trajopt.u[end-1][1:nu])', linetype=:steppost)
 
 # ## visualization 
+include("visuals.jl")
 vis = Visualizer()
 open(vis) 
-visualize_mountain_car!(vis, mountain_car, trajopt.x; mesh=true, Δt=0.01)
+visualize_mountain_car!(vis, mountain_car, trajopt.x; mesh=true, Δt=0.025)
