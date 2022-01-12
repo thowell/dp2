@@ -10,7 +10,6 @@ nx = 2 * nq
 nu = RoboDojo.quadruped.nu + nc + 8 + nc + 8 + 1
 nw = RoboDojo.quadruped.nw
 
-
 # ## time 
 T = 31 
 T_fix = 5
