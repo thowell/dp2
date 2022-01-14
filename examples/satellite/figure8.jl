@@ -143,7 +143,7 @@ for t = 1:T
     _p = kinematics_vis(satellite, x_sol[t][4 .+ (1:4)])
 	push!(points, Point(_p...))
 end
-
+5.24
 line_mat = LineBasicMaterial(color=color=RGBA(0.0, 1.0, 0.0, 1.0), linewidth=50)
 setobject!(vis[:figure8], MeshCat.Line(points, line_mat))
 

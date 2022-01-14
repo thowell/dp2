@@ -5,6 +5,7 @@
 # ## Setup
 
 using DirectTrajectoryOptimization
+const DTO = DirectTrajectoryOptimization
 using LinearAlgebra
 using Plots
 
@@ -20,10 +21,9 @@ T = 101
 
 # ## model
 h = 1.0
-dyn = [DirectTrajectoryOptimization.Dynamics(
+dyn = [DTO.Dynamics(
         (y, x, u, w) -> dynamics(mountain_car, h, y, x, u, w), 
         nx, nx, nu) for t = 1:T-1] 
-model = DirectTrajectoryOptimization.DynamicsModel(dyn)
 
 # ## initialization
 x1 = [0.0; 0.0] 
@@ -36,8 +36,8 @@ end
 function oT(x, u, w) 
     0.0 * dot(x - xT, x - xT)
 end
-ct = DirectTrajectoryOptimization.Cost(ot, nx, nu, nw, [t for t = 1:T-1])
-cT = DirectTrajectoryOptimization.Cost(oT, nx, 0, nw, [T])
+ct = DTO.Cost(ot, nx, nu, nw, [t for t = 1:T-1])
+cT = DTO.Cost(oT, nx, 0, nw, [T])
 obj = [ct, cT]
 
 # ## constraints
@@ -72,7 +72,7 @@ end
 initialize!(s, z0)
 
 # ## solve
-@time DirectTrajectoryOptimization.solve!(s)
+@time DTO.solve!(s)
 
 # ## solution
 @show trajopt.x[1]
