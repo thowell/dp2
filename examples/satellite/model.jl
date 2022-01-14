@@ -32,4 +32,4 @@ function kinematics(model::Satellite, q)
 end
 
 # model
-satellite = Satellite(8, 3, 0, Diagonal([1.0, 2.0, 3.0]))
+satellite = Satellite(8, 3, 0, Diagonal([0.5, 0.5, 0.5]))

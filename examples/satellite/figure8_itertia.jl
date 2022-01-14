@@ -4,7 +4,8 @@
 
 # ## Setup
 
-using DirectTrajectoryOptimization
+using DirectTrajectoryOptimization 
+const DTO = DirectTrajectoryOptimization
 using LinearAlgebra
 using Plots
 
@@ -37,42 +38,21 @@ pf = [RotZ(0.0 * π) * [xf[t]; yf[t]; zf[t]] for t = 1:T]
 
 # ## model
 h = 0.1
-dyn = DirectTrajectoryOptimization.Dynamics{Float64}[]
-dyn = [DirectTrajectoryOptimization.Dynamics(
+dyn = DTO.Dynamics{Float64}[]
+dyn = [DTO.Dynamics(
         (t == 1 ? (y, x, u, w) -> [dynamics(satellite, h, Diagonal(u[nu .+ (1:nθ)]), y[1:nx], x[1:nx], u[1:nu], w); y[nx .+ (1:nθ)] -  u[nu .+ (1:nθ)]]
          : (y, x, u, w) -> [dynamics(satellite, h, Diagonal(x[nx .+ (1:nθ)]), y[1:nx], x[1:nx], u[1:nu], w); y[nx .+ (1:nθ)] -  x[nx .+ (1:nθ)]]), 
         nx + nθ, nx + (t == 1 ? 0 : nθ), nu + (t == 1 ? nθ : 0)) for t = 1:T-1] 
-model = DirectTrajectoryOptimization.DynamicsModel(dyn)
 
 # ## initialization
 q1 = [1.0; 0.0; 0.0; 0.0] 
 qT = [1.0; 0.0; 0.0; 0.0]
-# _qT = UnitQuaternion(RotX(1.0) * RotY(1.0) * RotZ(0.0))
-# qT = [_qT.w; _qT.x; _qT.y; _qT.z]
-x1 = [q1; q1]
-xT = [qT; qT] 
+x1 = [q1; q1] # ω1 = 0
+xT = [qT; qT] # ωT = 0
 
 # # ## objective 
-# function ot(x, u, w) 
-#     q1 = x[1:4] 
-#     q2 = x[4 .+ (1:4)]
-#     ω = angular_velocity(h, q1, q2)
-#     1.0 * transpose(ω) * satellite.J * ω + 1.0 * dot(u, u)
-# end
 
-# function oT(x, u, w)
-#     q1 = x[1:4] 
-#     q2 = x[4 .+ (1:4)]
-#     ω = angular_velocity(h, q1, q2)
-#     1.0 * transpose(ω) * satellite.J * ω
-# end
-
-# ct = DirectTrajectoryOptimization.Cost(ot, nx, nu, nw, [t for t = 1:T-1])
-# cT = DirectTrajectoryOptimization.Cost(oT, nx, 0, nw, [T])
-# obj = [ct, cT]
-
-## tracking objective
-obj = DirectTrajectoryOptimization.Cost{Float64}[]
+obj = DTO.Cost{Float64}[]
 
 for t = 1:T-1 
     function ot(x, u, w) 
@@ -81,9 +61,9 @@ for t = 1:T-1
         ω = angular_velocity(h, q1, q2)
         k = kinematics(satellite, q2)
         J = (t == 1 ? Diagonal(u[nu .+ (1:nθ)]) : Diagonal(x[nx .+ (1:nθ)]))
-        1.0e-3 * transpose(ω) * J * ω + 1.0e-3 * dot(u, u) + 1000.0 * dot(k - pf[t], k - pf[t]) + 1.0e-5 * dot(x[1:nx] - xT, x[1:nx] - xT)
+        1.0e-3 * transpose(ω) * J * ω + 1.0e-3 * dot(u, u) + 1000.0 * dot(k - ref[t], k - ref[t]) + 1.0e-5 * dot(x[1:nx] - xT, x[1:nx] - xT)
     end
-    push!(obj, DirectTrajectoryOptimization.Cost(ot, nx + (t == 1 ? 0 : nθ), nu + (t == 1 ? nθ : 0), nw, [t]))
+    push!(obj, DTO.Cost(ot, nx + (t == 1 ? 0 : nθ), nu + (t == 1 ? nθ : 0), nw))
 end
 
 function oT(x, u, w)
@@ -92,93 +72,59 @@ function oT(x, u, w)
     ω = angular_velocity(h, q1, q2)
     k = kinematics(satellite, q2)
     J = Diagonal(x[nx .+ (1:nθ)])
-    1.0e-3 * transpose(ω) * J * ω + 1000.0 * dot(k - pf[T], k - pf[T]) + 1.0e-5 * dot(x[1:nx] - xT, x[1:nx] - xT)
+    1.0e-3 * transpose(ω) * J * ω + 1000.0 * dot(k - ref[T], k - ref[T]) + 1.0e-5 * dot(x[1:nx] - xT, x[1:nx] - xT)
 end
 
-push!(obj, DirectTrajectoryOptimization.Cost(oT, nx + nθ, 0, nw, [T]))
+push!(obj, DTO.Cost(oT, nx + nθ, 0, nw))
 
 # ## constraints
 ul = -10.0 * ones(nu) 
 uu = 10.0 * ones(nu)
-Jl = 0.5 * diag(satellite.J) 
-Ju = 2.0 * diag(satellite.J)
-bnd1 = Bound(nx, nu + nθ, [1], xl=x1, xu=x1, ul=[ul; Jl], uu=[uu; Ju])
-bndt = Bound(nx + nθ, nu, [t for t = 2:T-1], xl=[-Inf * ones(nx); Jl], xu=[Inf * ones(nx); Ju], ul=ul, uu=uu)
-bndT = Bound(nx + nθ, 0, [T], xl=[xT; Jl] , xu=[xT; Ju])
+Jl = 0.1 * diag(satellite.J) 
+Ju = 10.0 * diag(satellite.J)
+bnd1 = DTO.Bound(nx, nu + nθ, xl=x1, xu=x1, ul=[ul; Jl], uu=[uu; Ju])
+bndt = DTO.Bound(nx + nθ, nu, xl=[-Inf * ones(nx); Jl], xu=[Inf * ones(nx); Ju], ul=ul, uu=uu)
+bndT = DTO.Bound(nx + nθ, 0, xl=[xT; Jl] , xu=[xT; Ju])
+bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-# ## figure 8
-# stage_cons = DirectTrajectoryOptimization.StageConstraint{Float64}[]
-# ϵ = 1.0e-2
-# for t = 1:T-1
-#     function figure8t(x, u, w) 
-#         q2 = x[4 .+ (1:4)]
-#         k = kinematics(satellite, q2)
-#         e = k - pf[t]
-
-#         [
-#             -ϵ .- e; 
-#             e .- ϵ;
-#         ]
-#     end
-#     push!(stage_cons, StageConstraint(figure8t, nx, nu, nw, [t], :inequality))
-# end
-
-# function figure8T(x, u, w) 
-#     q2 = x[4 .+ (1:4)]
-#     k = kinematics(satellite, q2)
-#     e = k - pf[T]
-#     [
-#         -ϵ .- e; 
-#         e .- ϵ;
-#     ]
-# end
-# push!(stage_cons, StageConstraint(figure8T, nx, nu, nw, [T], :inequality))
-
-cons = ConstraintSet([bnd1, bndt, bndT])
+cons = [DTO.Constraint() for t = 1:T]
 
 # ## problem 
-trajopt = TrajectoryOptimizationProblem(obj, model, cons)
-s = Solver(trajopt, 
-    options=Options(
+p = ProblemData(obj, dyn, cons, bnds, options=Options(
         tol=1.0e-3,
-        constr_viol_tol=1.0e-3,
-    ))
+        constr_viol_tol=1.0e-3))
+
 
 # ## initialize
 J_init = copy(diag(satellite.J))
+x_guess = [t == 1 ? x1 : [x1; J_init] for t = 1:T]
 u_guess = [[0.1 * randn(nu); J_init], [0.1 * randn(nu) for t = 2:T-1]...]
-z0 = zeros(s.p.num_var)
-for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
-    z0[idx] = (t == 1 ? x1 : [x1; J_init])
-end
-for (t, idx) in enumerate(s.p.trajopt.model.idx.u)
-    z0[idx] = u_guess[t]
-end
-initialize!(s, z0)
+DTO.initialize_states!(p, x_guess)
+DTO.initialize_controls!(p, u_guess)
 
 # ## solve
-@time DirectTrajectoryOptimization.solve!(s)
+@time DTO.solve!(p)
 
 # ## solution
-@show trajopt.u[1][nu .+ (1:nθ)]
-@show trajopt.x[1]
-@show trajopt.x[T]
-q_sol = [trajopt.x[1][1:4], [x[4 .+ (1:4)] for x in trajopt.x]...]
-[norm(q) for q in q_sol]
+x_sol, u_sol = DTO.get_trajectory(p)
+@show θ = u_sol[1][nu .+ (1:nθ)]
+@show x_sol[1]
+@show x_sol[T]
+q_sol = [x_sol[1][1:4], [x[4 .+ (1:4)] for x in x_sol]...]
 
-@show DirectTrajectoryOptimization.eval_obj(obj, trajopt.x, trajopt.u, trajopt.w)
+@show DTO.eval_obj(obj, x_sol, p.nlp.trajopt.u, p.nlp.trajopt.w)
 
 # ## state
-plot(hcat([x[1:nx] for x in trajopt.x]...)', label = "", color = :orange, width=2.0)
+plot(hcat([x[1:nx] for x in x_sol]...)', label="", color=:orange, width=2.0)
 
 # ## control
-plot(hcat([u[1:nu] for u in trajopt.u[1:end-1]]..., trajopt.u[end-1][1:nu])', linetype = :steppost)
+plot(hcat([u[1:nu] for u in u_sol]..., u_sol[end][1:nu])', linetype=:steppost)
 
 # ## visualization 
 include("visuals.jl")
 vis = Visualizer()
 open(vis) 
-visualize_satellite!(vis, satellite, q_sol; Δt=h)
+visualize_satellite!(vis, satellite, q_sol; Δt=h, dim=θ)
 
 function kinematics_vis(model::Satellite, q)
 	p = [0.75, 0.0, 0.0]
@@ -187,9 +133,16 @@ function kinematics_vis(model::Satellite, q)
 end
 points = Vector{Point{3,Float64}}()
 for t = 1:T 
-    _p = kinematics_vis(satellite, trajopt.x[t][4 .+ (1:4)])
+    _p = kinematics_vis(satellite, x_sol[t][4 .+ (1:4)])
 	push!(points, Point(_p...))
 end
 
-line_mat = LineBasicMaterial(color=color=RGBA(1.0, 1.0, 1.0, 1.0), linewidth=25)
-setobject!(vis[:figure8], MeshCat.Line(points, line_mat))
+line_mat = LineBasicMaterial(color=color=RGBA(0.0, 1.0, 0.0, 1.0), linewidth=25)
+setobject!(vis, MeshCat.Line(points, line_mat))
+
+# ## ghost 
+timestep = [t for t = 1:2:T]#[37, 27, 17, 5]#, 10, 15, 20, 25, 30, 35, 40]
+ghost(vis, satellite, q_sol, dim=θ, timestep=timestep, transparency=[0.1 for t = 1:length(timestep)])
+
+# t = [37, 27, 17, 5]
+set_satellite!(vis, satellite, q_sol[t], name="satellite")
