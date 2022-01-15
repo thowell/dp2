@@ -8,7 +8,9 @@ struct Satellite{T}
       nx::Int
       nu::Int
       nw::Int
+      m::T
       J::Diagonal{T,Vector{T}} # inertia matrix
+      dim::Vector{T}
 end
 
 function dynamics(model::Satellite, h, J, y, x, u, w)
@@ -32,4 +34,4 @@ function kinematics(model::Satellite, q)
 end
 
 # model
-satellite = Satellite(8, 3, 0, Diagonal([0.5, 0.5, 0.5]))
+satellite = Satellite(8, 3, 0, 6.0, Diagonal([1.0, 1.0, 1.0]), [1.0, 1.0, 1.0])

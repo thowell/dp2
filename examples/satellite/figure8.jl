@@ -24,16 +24,16 @@ T = 40
 # ##https://mathworld.wolfram.com/VivianisCurve.html
 t = range(-2.0 * π, stop=2.0 * π, length=T)
 a = 0.05
-xf = a * (1.0 .+ cos.(t))
-yf = a * sin.(t)
-zf = 2.0 * a * sin.(0.5 .* t)
+rx = a * (1.0 .+ cos.(t))
+ry = a * sin.(t)
+rz = 2.0 * a * sin.(0.5 .* t)
 
-# plot(xf, zf, aspect_ratio = :equal)
-# plot(xf, yf, aspect_ratio = :equal)
-# plot(yf, zf, aspect_ratio = :equal)
-# plot(xf, yf, zf, aspect_ratio = :equal)
+# plot(rx, rz, aspect_ratio = :equal)
+# plot(rx, ry, aspect_ratio = :equal)
+# plot(ry, rz, aspect_ratio = :equal)
+# plot(rx, ry, rz, aspect_ratio = :equal)
 
-ref = [RotZ(0.0 * π) * [xf[t]; yf[t]; zf[t]] for t = 1:T]
+ref = [RotZ(0.0 * π) * [rx[t]; ry[t]; rz[t]] for t = 1:T]
 
 # ## model
 h = 0.1
@@ -117,8 +117,8 @@ x_sol, u_sol = DTO.get_trajectory(p)
 @show x_sol[1]
 @show x_sol[T]
 q_sol = [x_sol[1][1:4], [x[4 .+ (1:4)] for x in x_sol]...]
-x_sol
-u_sol
+q_vis = [[q_sol[1] for t = 1:10]..., q_sol..., [q_sol[end] for t = 1:10]...]
+
 @show DTO.eval_obj(obj, x_sol, [u_sol..., 0], p.nlp.trajopt.w)
 
 # ## state
@@ -131,7 +131,7 @@ plot(hcat(u_sol..., u_sol[end])', linetype = :steppost)
 include("visuals.jl")
 vis = Visualizer()
 open(vis) 
-visualize_satellite!(vis, satellite, q_sol; dim=diag(satellite.J), Δt=h)
+visualize_satellite!(vis, satellite, q_vis; dim=satellite.dim, Δt=h, body_scale=0.75)
 
 function kinematics_vis(model::Satellite, q)
 	p = [0.75, 0.0, 0.0]
@@ -143,13 +143,10 @@ for t = 1:T
     _p = kinematics_vis(satellite, x_sol[t][4 .+ (1:4)])
 	push!(points, Point(_p...))
 end
-5.24
-line_mat = LineBasicMaterial(color=color=RGBA(0.0, 1.0, 0.0, 1.0), linewidth=50)
-setobject!(vis[:figure8], MeshCat.Line(points, line_mat))
+
+line_mat = LineBasicMaterial(color=RGBA(0.0, 1.0, 0.0, 1.0), linewidth=25)
+setobject!(vis, MeshCat.Line(points, line_mat))
 
 # ## ghost 
 timestep = [t for t = 1:2:T]#[37, 27, 17, 5]#, 10, 15, 20, 25, 30, 35, 40]
-ghost(vis, satellite, q_sol, dim=diag(satellite.J), timestep=timestep, transparency=[0.1 for t = 1:length(timestep)])
-
-# t = [37, 27, 17, 5]
-set_satellite!(vis, satellite, q_sol[t], name="satellite")
+ghost(vis, satellite, q_sol, dim=satellite.dim, timestep=timestep, transparency=[0.1 for t = 1:length(timestep)], body_scale=0.75)

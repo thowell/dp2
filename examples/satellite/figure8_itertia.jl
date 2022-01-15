@@ -25,16 +25,16 @@ T = 40
 # ##https://mathworld.wolfram.com/VivianisCurve.html
 t = range(-2.0 * π, stop = 2.0 * π, length = T)
 a = 0.05
-xf = a * (1.0 .+ cos.(t))
-yf = a * sin.(t)
-zf = 2.0 * a * sin.(0.5 .* t)
+rx = a * (1.0 .+ cos.(t))
+ry = a * sin.(t)
+rz = 2.0 * a * sin.(0.5 .* t)
 
-# plot(xf, zf, aspect_ratio = :equal)
-# plot(xf, yf, aspect_ratio = :equal)
-# plot(yf, zf, aspect_ratio = :equal)
-# plot(xf, yf, zf, aspect_ratio = :equal)
+# plot(rx, rz, aspect_ratio = :equal)
+# plot(rx, ry, aspect_ratio = :equal)
+# plot(ry, rz, aspect_ratio = :equal)
+# plot(rx, ry, rz, aspect_ratio = :equal)
 
-pf = [RotZ(0.0 * π) * [xf[t]; yf[t]; zf[t]] for t = 1:T]
+ref = [RotZ(0.0 * π) * [rx[t]; ry[t]; rz[t]] for t = 1:T]
 
 # ## model
 h = 0.1
@@ -94,7 +94,6 @@ p = ProblemData(obj, dyn, cons, bnds, options=Options(
         tol=1.0e-3,
         constr_viol_tol=1.0e-3))
 
-
 # ## initialize
 J_init = copy(diag(satellite.J))
 x_guess = [t == 1 ? x1 : [x1; J_init] for t = 1:T]
@@ -124,7 +123,17 @@ plot(hcat([u[1:nu] for u in u_sol]..., u_sol[end][1:nu])', linetype=:steppost)
 include("visuals.jl")
 vis = Visualizer()
 open(vis) 
-visualize_satellite!(vis, satellite, q_sol; Δt=h, dim=θ)
+q_vis = [[q_sol[1] for t = 1:10]..., q_sol..., [q_sol[end] for t = 1:10]...]
+
+# dimensions for visualization
+A = satellite.m / 12 * [1.0 1.0 0.0; 
+                        0.0 1.0 1.0; 
+                        1.0 0.0 1.0]
+b = θ
+sol = (A' * A + 1.15 * I) \ (A' * b) # set regularization to ensure physical solution (i.e., positive dimensions)
+height, depth, width = sqrt.(sol)
+
+visualize_satellite!(vis, satellite, q_vis; Δt=h, dim=[width, depth, height], body_scale=0.75, arrow_scale=0.25)
 
 function kinematics_vis(model::Satellite, q)
 	p = [0.75, 0.0, 0.0]
@@ -142,7 +151,5 @@ setobject!(vis, MeshCat.Line(points, line_mat))
 
 # ## ghost 
 timestep = [t for t = 1:2:T]#[37, 27, 17, 5]#, 10, 15, 20, 25, 30, 35, 40]
-ghost(vis, satellite, q_sol, dim=θ, timestep=timestep, transparency=[0.1 for t = 1:length(timestep)])
+ghost(vis, satellite, q_sol, dim=[width, depth, height], timestep=timestep, transparency=[0.1 for t = 1:length(timestep)], body_scale=0.75, arrow_scale=0.25)
 
-# t = [37, 27, 17, 5]
-set_satellite!(vis, satellite, q_sol[t], name="satellite")
