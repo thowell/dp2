@@ -4,7 +4,8 @@
 
 # ## Setup
 
-using DirectTrajectoryOptimization
+using DirectTrajectoryOptimization 
+const DTO = DirectTrajectoryOptimization
 using LinearAlgebra
 using Plots
 
@@ -37,12 +38,10 @@ function ft(y, x, u, w)
 end
 
 dyn = [
-         DirectTrajectoryOptimization.Dynamics(f1, nx + nθ, nx, nu + nθ), 
-        [DirectTrajectoryOptimization.Dynamics(ft, nx + nθ, nx + nθ, nu) for t = 2:(T-1)]...
+         DTO.Dynamics(f1, nx + nθ, nx, nu + nθ), 
+        [DTO.Dynamics(ft, nx + nθ, nx + nθ, nu) for t = 2:(T-1)]...
       ]
         
-model = DirectTrajectoryOptimization.DynamicsModel(dyn)
-
 # ## initialization
 x1 = [-π / 6.0; 0.0] 
 
@@ -51,18 +50,20 @@ function o1(x, u, w)
     h = u[2]
     return h 
 end
+
 function ot(x, u, w) 
     h = x[3] 
     return h
 end
+
 function oT(x, u, w) 
     return 0.0
 end
 
-c1 = DirectTrajectoryOptimization.Cost(o1, nx, nu + nθ, nw, [1])
-ct = DirectTrajectoryOptimization.Cost(ot, nx + nθ, nu, nw, [t for t = 2:T-1])
-cT = DirectTrajectoryOptimization.Cost(oT, nx + nθ, 0, nw, [T])
-obj = [c1, ct, cT]
+c1 = DTO.Cost(o1, nx, nu + nθ, nw)
+ct = DTO.Cost(ot, nx + nθ, nu, nw)
+cT = DTO.Cost(oT, nx + nθ, 0, nw)
+obj = [c1, [ct for t = 2:T-1]..., cT]
 
 # ## constraints
 ul = -1.0 * ones(nu) 
@@ -74,49 +75,60 @@ xTu = [Inf; 0.07]
 h0 = 0.25
 hl = 0.0
 hu = 1.0
-bnd1 = Bound(nx, nu + nθ, [1], xl=x1, xu=x1, ul=[ul; hl], uu=[uu; hu])
-bndt = Bound(nx + nθ, nu, [t for t = 2:T-1], xl=[xl; hl], xu=[xu; hu], ul=ul, uu=uu)
-bndT = Bound(nx + nθ, 0, [T], xl=[xTl; hl], xu=[xTu; hu])
+bnd1 = DTO.Bound(nx, nu + nθ, xl=x1, xu=x1, ul=[ul; hl], uu=[uu; hu])
+bndt = DTO.Bound(nx + nθ, nu, xl=[xl; hl], xu=[xu; hu], ul=ul, uu=uu)
+bndT = DTO.Bound(nx + nθ, 0, xl=[xTl; hl], xu=[xTu; hu])
+bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-cons = ConstraintSet([bnd1, bndt, bndT])
+cons = [DTO.Constraint() for t = 1:T]
 
 # ## problem 
-trajopt = TrajectoryOptimizationProblem(obj, model, cons)
-s = Solver(trajopt, 
-    options=Options(
-        tol=1.0e-2,
-        constr_viol_tol=1.0e-2))
+p = DTO.ProblemData(obj, dyn, cons, bnds, 
+    options=DTO.Options(tol=1.0e-2, constr_viol_tol=1.0e-2))
 
 # ## initialize
-u_guess = [[1.0 * randn(nu); h0], [1.0 * randn(nu) for t = 2:T-1]...]
-z0 = zeros(s.p.num_var)
-for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
-    if t > 1
-        z0[idx] = [x1; h0] 
-    else
-        z0[idx] = x1 
-    end
-end
-for (t, idx) in enumerate(s.p.trajopt.model.idx.u)
-    z0[idx] = u_guess[t]
-end
-initialize!(s, z0)
+u_guess = [t == 1 ? [1.0 * randn(nu); h0] : 1.0 * randn(nu) for t = 1:T-1]
+x_guess = [t == 1 ? x1 : [x1; h0] for t = 1:T]
+DTO.initialize_controls!(p, u_guess)
+DTO.initialize_states!(p, x_guess)
 
 # ## solve
-@time DirectTrajectoryOptimization.solve!(s)
+@time DTO.solve!(p)
 
 # ## solution
-@show trajopt.x[1]
-@show trajopt.x[T]
+x_sol, u_sol = DTO.get_trajectory(p)
+@show x_sol[1]
+@show x_sol[T]
+@show h_sol = u_sol[1][end]
+@show h_sol  
 
 # ## state
-plot(hcat([x[1:nx] for x in trajopt.x]...)', label="", color=:orange, width=2.0)
+plot(hcat([x[1:nx] for x in x_sol]...)', label="", color=:orange, width=2.0)
 
 # ## control
-plot(hcat([u[1:nu] for u in trajopt.u[1:end-1]]..., trajopt.u[end-1][1:nu])', linetype=:steppost)
+plot(hcat([u[1:nu] for u in u_sol]..., u_sol[end][1:nu])', linetype=:steppost)
 
 # ## visualization 
 include("visuals.jl")
 vis = Visualizer()
 open(vis) 
-visualize_mountain_car!(vis, mountain_car, trajopt.x; mesh=true, Δt=0.025)
+x_vis = [[x_sol[1] for t = 1:50]..., x_sol..., [x_sol[end] for t = 1:50]...]
+visualize_mountain_car!(vis, mountain_car, x_vis; mesh=true, color="metal", Δt=0.05 * h_sol)
+
+# ## ghost 
+t = [T, 180, 170, 160, 150, 130, 110, 80, 50, 1]
+ghost_mountain_car!(vis, mountain_car, x_sol; timestep=t, mesh=true, color="transparent")
+
+# ## PGFPlots 
+using PGFPlots
+const PGF = PGFPlots
+tt = [(j - 1) * h_sol for j = 1:T] ./ (h * (T - 1))
+p_free = PGF.Plots.Linear(tt, vcat([u[1:nu] for u in u_sol]..., u_sol[end][1:nu]), legendentry="free time", mark="none",style="const plot, color=cyan, line width=2pt, solid")
+
+a1 = Axis([p_fixed; p_free], 
+    hideAxis=false,
+	ylabel="control",
+	xlabel="time",
+    legendPos="south east") 
+dir = joinpath("/home/taylor/Research/parameter_optimization_manuscript/figures")
+PGF.save(joinpath(dir, "mountain_car_control.tikz"), a1)
