@@ -1,6 +1,6 @@
-function build_mountain_car!(vis, model::MountainCar; mesh=false, color="metal", z_shift=0.0, name="car")
+function build_mountain_car!(vis, model::MountainCar; mesh=false, color="metal", z_shift=0.0, name="car", xl=-1.2, xu=0.6)
     N = 100
-    x_domain = range(xl[1], stop=xu[1], length=N)
+    x_domain = range(xl, stop=xu, length=N)
     z_domain = sin.(3.0 .* x_domain)
     points = Vector{Point{3,Float64}}()
     for i = 1:N
@@ -92,9 +92,9 @@ function set_mountain_car!(vis, model::MountainCar, x; z_shift=0.0, name="car")
 
 end
 
-function visualize_mountain_car!(vis, model::MountainCar, x; z_shift=0.0, name="car", mesh=false, color="metal", Δt=0.1)
+function visualize_mountain_car!(vis, model::MountainCar, x; z_shift=0.0, name="car", mesh=false, color="metal", Δt=0.1, xl=-1.2, xu=0.6)
 
-    build_mountain_car!(vis, model, z_shift=z_shift, name=name, mesh=mesh, color=color)
+    build_mountain_car!(vis, model, z_shift=z_shift, name=name, mesh=mesh, color=color, xl=xl, xu=xu)
     anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
 
     for t = 1:length(x)
@@ -106,10 +106,10 @@ function visualize_mountain_car!(vis, model::MountainCar, x; z_shift=0.0, name="
     MeshCat.setanimation!(vis, anim)
 end
 
-function ghost_mountain_car!(vis, model::MountainCar, x; timestep=[t for t = 1:length(x)], z_shift=0.0, name="car", mesh=false, color="metal")
+function ghost_mountain_car!(vis, model::MountainCar, x; timestep=[t for t = 1:length(x)], z_shift=0.0, name="car", mesh=false, color="metal", xl=-1.2, xu=0.6)
     for t in timestep
         name = name*"$t"
-        build_mountain_car!(vis, model, z_shift=z_shift, name=name, mesh=mesh, color=color)
+        build_mountain_car!(vis, model, z_shift=z_shift, name=name, mesh=mesh, color=color, xl=xl, xu=xu)
         set_mountain_car!(vis, model, x[t], name=name, z_shift=z_shift)
     end
 end

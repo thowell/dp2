@@ -113,11 +113,11 @@ include("visuals.jl")
 vis = Visualizer()
 open(vis) 
 x_vis = [[x_sol[1] for t = 1:50]..., x_sol..., [x_sol[end] for t = 1:50]...]
-visualize_mountain_car!(vis, mountain_car, x_vis; mesh=true, color="metal", Δt=0.05 * h_sol)
+visualize_mountain_car!(vis, mountain_car, x_vis; mesh=true, color="metal", Δt=0.05 * h_sol, xl=xl[1], xu=xu[1])
 
 # ## ghost 
 t = [T, 180, 170, 160, 150, 130, 110, 80, 50, 1]
-ghost_mountain_car!(vis, mountain_car, x_sol; timestep=t, mesh=true, color="transparent")
+ghost_mountain_car!(vis, mountain_car, x_sol; timestep=t, mesh=true, color="transparent", xl=xl[1], xu=xu[1])
 
 # ## PGFPlots 
 using PGFPlots

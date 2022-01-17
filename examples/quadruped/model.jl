@@ -77,12 +77,6 @@ function contact_constraints_inequality1(h, x, u, w)
     sα = u[nu + 4 + 8 + 4 + 8 .+ (1:1)]
 
     ϕ = RoboDojo.signed_distance(model, q3)[1:4]
-   
-    # v = (q3 - q2) ./ h[1]
-    # vT_foot = [(RoboDojo.quadruped_contact_kinematics_jacobians[i](q3) * v)[1] for i = 1:4]
-    # vT = vcat([[vT_foot[i]; -vT_foot[i]] for i = 1:4]...)
-    
-    # ψ_stack = vcat([ψ[i] * ones(2) for i = 1:4]...)
     
     μ = RoboDojo.friction_coefficients(model)[1:4]
     fc = μ .* γ[1:4] - vcat([sum(β[(i-1) * 2 .+ (1:2)]) for i = 1:4]...)
@@ -238,3 +232,14 @@ function ellipse_trajectory(x_start, x_goal, z, T)
 	z = sqrt.(max.(0.0, (b^2) * (1.0 .- ((x .- (x_start + a)).^2.0) / (a^2.0))))
 	return x, z
 end
+
+function mirror_gait(q, T)
+	qm = [deepcopy(q)...]
+	stride = zero(qm[1])
+	stride[1] = q[T+1][1] - q[2][1]
+	for t = 1:T-1
+		push!(qm, Array(perm) * q[t+2] + stride)
+	end
+	return qm
+end
+

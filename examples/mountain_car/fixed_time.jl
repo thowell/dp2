@@ -44,7 +44,7 @@ obj = [[ct for t = 1:T-1]..., cT]
 ul = -1.0 * ones(nu) 
 uu = 1.0 * ones(nu)
 xl = [-1.2; -0.07] 
-xu = [0.5; 0.07]
+xu = [0.6; 0.07]
 xTl = [0.5; -0.07]
 xTu = [Inf; 0.07]
 bnd1 = DTO.Bound(nx, nu, xl=x1, xu=x1, ul=ul, uu=uu)
@@ -79,8 +79,9 @@ plot(hcat(u_sol..., u_sol[end])', linetype = :steppost)
 # ## visualization 
 include("visuals.jl")
 vis = Visualizer()
-open(vis) 
-visualize_mountain_car!(vis, mountain_car, x_sol; Δt=0.05 * h, mesh=true, z_shift=0.0)
+open(vis)
+x_vis = [[x_sol[1] for t = 1:50]..., x_sol..., [x_sol[end] for t = 1:50]...]
+visualize_mountain_car!(vis, mountain_car, x_vis; Δt=0.05 * h, mesh=true, z_shift=0.0, xl=xl[1], xu=xu[1])
 
 # ## PGFPlots 
 using PGFPlots

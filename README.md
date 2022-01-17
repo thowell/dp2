@@ -10,3 +10,4 @@ This repository contains examples from our paper: "Parameter + Trajectory Optimi
 ## Drone 
 
 ## Quadruped 
+<img src="examples/animations/quadruped_gait.gif" width="300"/>
