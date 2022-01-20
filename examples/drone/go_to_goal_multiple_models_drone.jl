@@ -4,7 +4,8 @@
 
 # ## Setup
 
-using DirectTrajectoryOptimization
+using DirectTrajectoryOptimization 
+const DTO = DirectTrajectoryOptimization
 using LinearAlgebra
 using Plots
 # using JLD2
@@ -48,7 +49,6 @@ u_hover = hover_controls(drone, θ_angle)
 
 radius = 1.0
 dia = sqrt(2.0) / 2.0 * radius 
-# dia^2 + dia^2 - radius^2
 x1 = [
         [radius; 0.0; 0.0; 0.0; 0.0; 0.0],
         [-radius; 0.0; 0.0; 0.0; 0.0; 0.0],
@@ -136,11 +136,10 @@ function ft(y, x, u, w)
     ]
 end
 
-dyn1 = DirectTrajectoryOptimization.Dynamics(f1, Nx + nθ, Nx, Nu + nθ)
-dynt = DirectTrajectoryOptimization.Dynamics(ft, Nx + nθ, Nx + nθ, Nu)
+dyn1 = DTO.Dynamics(f1, Nx + nθ, Nx, Nu + nθ)
+dynt = DTO.Dynamics(ft, Nx + nθ, Nx + nθ, Nu)
 
 dyn = [dyn1, [dynt for t = 2:T-1]...]
-model = DirectTrajectoryOptimization.DynamicsModel(dyn)
 
 # ## objective 
 function o1(x, u, w)
@@ -212,20 +211,21 @@ function oT(x, u, w)
     return J 
 end
 
-c1 = DirectTrajectoryOptimization.Cost(o1, Nx, Nu + nθ, Nw, [1])
-ct = DirectTrajectoryOptimization.Cost(ot, Nx + nθ, Nu, Nw, [t for t = 2:15])
-ctt = DirectTrajectoryOptimization.Cost(ott, Nx + nθ, Nu, Nw, [t for t = 16:T-1])
-cT = DirectTrajectoryOptimization.Cost(oT, Nx + nθ, 0, Nw, [T])
-obj = [c1, ct, ctt, cT]
+c1 = DTO.Cost(o1, Nx, Nu + nθ, Nw)
+ct = DTO.Cost(ot, Nx + nθ, Nu, Nw)
+ctt = DTO.Cost(ott, Nx + nθ, Nu, Nw)
+cT = DTO.Cost(oT, Nx + nθ, 0, Nw)
+obj = [c1, [ct for t = 2:15]..., [ctt for t = 16:(T-1)]..., cT]
 
 # ## constraints
 ul = [0.0; -0.5 * π; 0.0; -0.5 * π]  
 uu = [10.0; 0.5 * π; 10.0; 0.5 * π]
 Ul = vcat([ul for i = 1:N]...) 
 Uu = vcat([uu for i = 1:N]...)
-bnd1 = Bound(Nx, Nu + nθ, [1], xl=X1, xu=X1, ul=[Ul; -Inf * ones(nθ)], uu=[Uu; Inf * ones(nθ)])
-bndt = Bound(Nx + nθ, Nu, [t for t = 2:T-1], ul=Ul, uu=Uu)
-# bndT = Bound(Nx + nθ, 0, [T], xl=[XT; -Inf * ones(nθ)], xu=[XT; Inf * ones(nθ)])
+bnd1 = DTO.Bound(Nx, Nu + nθ, xl=X1, xu=X1, ul=[Ul; -Inf * ones(nθ)], uu=[Uu; Inf * ones(nθ)])
+bndt = DTO.Bound(Nx + nθ, Nu, ul=Ul, uu=Uu)
+bndT = DTO.Bound(Nx + nθ, 0)#, xl=[XT; -Inf * ones(nθ)], xu=[XT; Inf * ones(nθ)])
+bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
 function policy1(x, u, w) 
     ui = [u[nu * (i - 1) .+ (1:nu)] for i = 1:N]
@@ -241,43 +241,37 @@ function policyt(x, u, w)
     vcat([ui[i] - policy(θ, xi[i], xT[i]) for i = 1:N]...)
 end
 
-con_policy1 = StageConstraint(policy1, Nx, Nu + nθ, Nw, [1], :equality)
-con_policyt = StageConstraint(policyt, Nx + nθ, Nu, Nw, [t for t = 2:T-1], :equality)
+con_policy1 = DTO.Constraint(policy1, Nx, Nu + nθ, Nw)
+con_policyt = DTO.Constraint(policyt, Nx + nθ, Nu, Nw)
 
-cons = ConstraintSet([bnd1, bndt], 
-    [con_policy1, con_policyt])
+cons = [con_policy1, [con_policyt for t = 2:(T - 1)]..., DTO.Constraint()]
 
 # ## problem 
-trajopt = TrajectoryOptimizationProblem(obj, model, cons)
-s = Solver(trajopt, 
-    options=Options(
+p = DTO.ProblemData(obj, dyn, cons, bnds,
+    options=DTO.Options(
         max_cpu_time=2500.0,
         max_iter=2500,
         tol=1.0e-3,
-        constr_viol_tol=1.0e-3,
-    ))
+        constr_viol_tol=1.0e-3))
 
 # ## initialize
-θ0 = randn(nθ)
+θ0 = 1.0 * randn(nθ)
 U_hover = vcat([u_hover for i = 1:N]...)
 u_guess = [[U_hover; θ0], [U_hover for t = 2:T-1]...]
-z0 = zeros(s.p.num_var)
-for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
-    z0[idx] = t == 1 ? X1 : [X1; randn(nθ)]
-end
-for (t, idx) in enumerate(s.p.trajopt.model.idx.u)
-    z0[idx] = u_guess[t]
-end
-initialize!(s, z0)
+x_guess = [t == 1 ? X1 : [X1; θ0] for t = 1:T]
+DTO.initialize_controls!(p, u_guess)
+DTO.initialize_states!(p, x_guess)
 
 # ## solve
-@time DirectTrajectoryOptimization.solve!(s)
+@time DTO.solve!(p)
 
 # ## solution
-X_sol = [[x[(i - 1) * nx .+ (1:nx)] for x in trajopt.x] for i = 1:N]
-U_sol = [[u_hover, [u[(i - 1) * nu .+ (1:nu)] for u in trajopt.u[1:(end-1)]]...] for i = 1:N]
-θ_sol = trajopt.u[1][Nu .+ (1:nθ)]
-
+x_sol, u_sol = DTO.get_trajectory(p)
+X_sol = [[x[(i - 1) * nx .+ (1:nx)] for x in x_sol] for i = 1:N]
+U_sol = [[u_hover, [u[(i - 1) * nu .+ (1:nu)] for u in u_sol]...] for i = 1:N]
+@show θ_sol = u_sol[1][Nu .+ (1:nθ)]
+@show x_sol[2][Nx .+ (1:nθ)]
+θ_sol - x_sol[2][Nx .+ (1:nθ)]
 # # ## state
 # plt = plot();
 # for i = 1:N
@@ -306,11 +300,11 @@ open(vis)
 visualize_drone!(vis, drone, X_sol, U_sol; Δt=h, xT=xT)
 
 # ## simulate policy 
-i = 1
+i = 5
 x_init = x1[i] 
 x_goal = xT[i]
-x_init = [0.0; -0.6; 0.0; 0.0; 0.0; 0.0]
-x_goal = [0.5; 0.5; 0.0; 0.0; 0.0; 0.0]
+# x_init = [0.0; -0.6; 0.0; 0.0; 0.0; 0.0]
+# x_goal = [0.5; 0.5; 0.0; 0.0; 0.0; 0.0]
 x_hist = [x_init] 
 u_hist = [u_hover]
 
@@ -323,4 +317,4 @@ visualize_drone!(vis, drone, [x_hist], [u_hist]; Δt=h, xT=[x_goal])
 
 # ## save policy
 # @save joinpath(@__DIR__, "policy.jld2") θ_sol
-@load joinpath(@__DIR__, "policy.jld2") θ_sol
+# @load joinpath(@__DIR__, "policy.jld2") θ_sol
