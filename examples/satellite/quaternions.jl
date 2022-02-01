@@ -52,6 +52,11 @@ function angular_velocity(h, q1, q2)
     2.0 * transpose(H) * transpose(L_mult(q1)) * (q2 - q1) / h
 end
 
+# Cayley map (modified-Rodriques parameter to quaternion)
+function cayley(x)
+    1.0 / sqrt(1.0 + norm(x)^2.0) * [1.0; x]
+end
+
 # ## test 
 # # variables
 # @variables q1[1:4] q2[1:4] q3[1:4] h[1:1]

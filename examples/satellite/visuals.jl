@@ -42,16 +42,15 @@ function build_satellite(vis, p::Satellite; dim=p.dim, name="satellite", transpa
 	return vis
 end
 
-
 # visuals
-function set_satellite!(vis, p::Satellite, q; name="satellite")
+function set_satellite!(vis, p::Satellite, q; name="satellite", orientation=:quaternion)
 	settransform!(vis[name],
 		compose(Translation(0.0 * [-0.25; -0.25; -0.25]...),
-				LinearMap(rotation_matrix(q))))
+				LinearMap(orientation == :quaternion ? rotation_matrix(q[1:4]) : Rotations.MRP(q[1:3]...))))
 end
 
 # visuals
-function visualize_satellite!(vis, p::Satellite, q; Δt=0.1, dim=p.dim, name="satellite", transparency=1.0, body_scale=1.0, arrow_scale=1.0)
+function visualize_satellite!(vis, p::Satellite, q; Δt=0.1, dim=p.dim, name="satellite", transparency=1.0, body_scale=1.0, arrow_scale=1.0, orientation=:quaternion)
 	setvisible!(vis["/Background"], true)
 	setprop!(vis["/Background"], "top_color", RGBA(1.0, 1.0, 1.0, 1.0))
 	setprop!(vis["/Background"], "bottom_color", RGBA(1.0, 1.0, 1.0, 1.0))
@@ -62,7 +61,7 @@ function visualize_satellite!(vis, p::Satellite, q; Δt=0.1, dim=p.dim, name="sa
     anim = MeshCat.Animation(convert(Int, floor(1.0 / Δt)))
 	for t = 1:length(q)
 		MeshCat.atframe(anim, t) do
-			set_satellite!(vis, p, q[t], name=name)
+			set_satellite!(vis, p, q[t], name=name, orientation=orientation)
 		end
 	end
     MeshCat.setanimation!(vis, anim)
