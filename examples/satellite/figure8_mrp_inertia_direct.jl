@@ -4,13 +4,13 @@
 
 # ## Setup
 
-using DirectTrajectoryOptimization 
+using DirectTrajectoryOptimization
 const DTO = DirectTrajectoryOptimization
 using LinearAlgebra
 using Plots
 
 # ## satellite 
-include("model.jl") 
+include("model_mrp.jl") 
 
 nx = satellite.nx
 nu = satellite.nu
@@ -18,12 +18,12 @@ nw = satellite.nw
 nθ = 3
 
 # ## horizon 
-T = 40
+T = 41
 
 # ## Reference trajectory
 # ##https://en.wikipedia.org/wiki/Viviani%27s_curve
 # ##https://mathworld.wolfram.com/VivianisCurve.html
-t = range(-2.0 * π, stop = 2.0 * π, length = T)
+t = range(-2.0 * π, stop=2.0 * π, length=T)
 a = 0.05
 rx = a * (1.0 .+ cos.(t))
 ry = a * sin.(t)
@@ -44,34 +44,31 @@ dyn = [DTO.Dynamics(
         nx + nθ, nx + (t == 1 ? 0 : nθ), nu + (t == 1 ? nθ : 0)) for t = 1:T-1] 
 
 # ## initialization
-q1 = [1.0; 0.0; 0.0; 0.0] 
-qT = [1.0; 0.0; 0.0; 0.0]
-x1 = [q1; q1] # ω1 = 0
-xT = [qT; qT] # ωT = 0
+mrp1 = MRP(RotX(0.0 * π))
+x1 = [mrp1.x, mrp1.y, mrp1.z, 0.0, 0.0, 0.0]
+mrpT = MRP(RotX(0.0 * π))
+xT = [mrpT.x, mrpT.y, mrpT.z, 0.0, 0.0, 0.0]
 
-# # ## objective 
-
+## tracking objective
 obj = DTO.Cost{Float64}[]
 
 for t = 1:T-1 
     function ot(x, u, w) 
-        q1 = x[1:4] 
-        q2 = x[4 .+ (1:4)]
-        ω = angular_velocity(h, q1, q2)
-        k = kinematics(satellite, q2)
+        r = x[1:3]
+        ω = x[3 .+ (1:3)]
+        k = kinematics(satellite, r)
         J = (t == 1 ? Diagonal(u[nu .+ (1:nθ)]) : Diagonal(x[nx .+ (1:nθ)]))
-        1.0e-3 * transpose(ω) * J * ω + 1.0e-3 * dot(u, u) + 1000.0 * dot(k - ref[t], k - ref[t]) + 1.0e-5 * dot(x[1:nx] - xT, x[1:nx] - xT)
+        0.5 * transpose(ω) * J * ω + 0.5 * dot(u, u) + 0.5 * dot(k - ref[t], k - ref[t])
     end
     push!(obj, DTO.Cost(ot, nx + (t == 1 ? 0 : nθ), nu + (t == 1 ? nθ : 0), nw))
 end
 
 function oT(x, u, w)
-    q1 = x[1:4] 
-    q2 = x[4 .+ (1:4)]
-    ω = angular_velocity(h, q1, q2)
-    k = kinematics(satellite, q2)
+    r = x[1:3]
+    ω = x[3 .+ (1:3)]
+    k = kinematics(satellite, r)
     J = Diagonal(x[nx .+ (1:nθ)])
-    1.0e-3 * transpose(ω) * J * ω + 1000.0 * dot(k - ref[T], k - ref[T]) + 1.0e-5 * dot(x[1:nx] - xT, x[1:nx] - xT)
+    0.5 * transpose(ω) * J * ω + 0.5 * dot(k - ref[T], k - ref[T])
 end
 
 push!(obj, DTO.Cost(oT, nx + nθ, 0, nw))
@@ -83,56 +80,64 @@ Jl = 0.1 * diag(satellite.J)
 Ju = 10.0 * diag(satellite.J)
 bnd1 = DTO.Bound(nx, nu + nθ, xl=x1, xu=x1, ul=[ul; Jl], uu=[uu; Ju])
 bndt = DTO.Bound(nx + nθ, nu, xl=[-Inf * ones(nx); Jl], xu=[Inf * ones(nx); Ju], ul=ul, uu=uu)
-bndT = DTO.Bound(nx + nθ, 0, xl=[xT; Jl] , xu=[xT; Ju])
+bndT = DTO.Bound(nx + nθ, 0, xl=[xT; Jl], xu=[xT; Ju])
 bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-cons = [DTO.Constraint() for t = 1:T]
+cons = DTO.Constraint{Float64}[]
+for t = 1:T
+    if t in [6, 11, 16, 21, 26, 31, 36]
+        function constraint(x, u, w) 
+            [
+                kinematics(satellite, x[1:3]) - ref[t];
+            ]
+        end
+        push!(cons, DTO.Constraint(constraint, nx, nu, 0))
+    else 
+        push!(cons, DTO.Constraint())
+    end
+end
 
 # ## problem 
-p = ProblemData(obj, dyn, cons, bnds, options=Options(
+p = DTO.ProblemData(obj, dyn, cons, bnds, options=Options(
         tol=1.0e-3,
         constr_viol_tol=1.0e-3))
-
+    
 # ## initialize
-J_init = copy(diag(satellite.J))
-x_guess = [t == 1 ? x1 : [x1; J_init] for t = 1:T]
-u_guess = [[0.1 * randn(nu); J_init], [0.1 * randn(nu) for t = 2:T-1]...]
-DTO.initialize_states!(p, x_guess)
-DTO.initialize_controls!(p, u_guess)
+J_init = diag(satellite.J)
+DTO.initialize_controls!(p, [t == 1 ? [1.0e-3 * randn(nu); J_init] : 1.0e-3 * randn(nu) for t = 1:T-1])
+DTO.initialize_states!(p, [t == 1 ? x1 : [x1; J_init] for t = 1:T])
 
 # ## solve
 @time DTO.solve!(p)
 
 # ## solution
 x_sol, u_sol = DTO.get_trajectory(p)
-@show θ = u_sol[1][nu .+ (1:nθ)]
+θ_sol = u_sol[1][nu .+ (1:nθ)]
 @show x_sol[1]
 @show x_sol[T]
-q_sol = [x_sol[1][1:4], [x[4 .+ (1:4)] for x in x_sol]...]
 
-@show DTO.eval_obj(obj, x_sol, p.nlp.trajopt.u, p.nlp.trajopt.w)
+@show DTO.eval_obj(obj, x_sol, [u_sol..., 0], p.nlp.trajopt.w)
 
 # ## state
-plot(hcat([x[1:nx] for x in x_sol]...)', label="", color=:orange, width=2.0)
+plot(hcat([x[1:nx] for x in x_sol]...)', label = "", color = :orange, width=2.0)
 
 # ## control
-plot(hcat([u[1:nu] for u in u_sol]..., u_sol[end][1:nu])', linetype=:steppost)
+plot(hcat([u[1:nu] for u in u_sol]..., u_sol[end][1:nu])', linetype = :steppost)
+
+# ## geometry 
+# dimensions for visualization
+A = satellite.m / 12 * [1.0 1.0 0.0; 
+                        0.0 1.0 1.0; 
+                        1.0 0.0 1.0]
+b = θ_sol
+sol = (A' * A + 1.15 * I) \ (A' * b) # set regularization to ensure physical solution (i.e., positive dimensions)
+height, depth, width = sqrt.(sol)
 
 # ## visualization 
 include("visuals.jl")
 vis = Visualizer()
 open(vis) 
-q_vis = [[q_sol[1] for t = 1:10]..., q_sol..., [q_sol[end] for t = 1:10]...]
-
-# dimensions for visualization
-A = satellite.m / 12 * [1.0 1.0 0.0; 
-                        0.0 1.0 1.0; 
-                        1.0 0.0 1.0]
-b = θ
-sol = (A' * A + 1.15 * I) \ (A' * b) # set regularization to ensure physical solution (i.e., positive dimensions)
-height, depth, width = sqrt.(sol)
-
-visualize_satellite!(vis, satellite, q_vis; Δt=h, dim=[width, depth, height], body_scale=0.75, arrow_scale=0.25)
+visualize_satellite!(vis, satellite, x_sol; dim=[width, depth, height], Δt=h, body_scale=0.75, orientation=:mrp)
 
 function kinematics_vis(model::Satellite, q)
 	p = [0.75, 0.0, 0.0]
@@ -145,10 +150,9 @@ for t = 1:T
 	push!(points, Point(_p...))
 end
 
-line_mat = LineBasicMaterial(color=color=RGBA(0.0, 1.0, 0.0, 1.0), linewidth=25)
+line_mat = LineBasicMaterial(color=RGBA(0.0, 1.0, 0.0, 1.0), linewidth=25)
 setobject!(vis, MeshCat.Line(points, line_mat))
 
 # ## ghost 
 timestep = [t for t = 1:2:T]#[37, 27, 17, 5]#, 10, 15, 20, 25, 30, 35, 40]
-ghost(vis, satellite, q_sol, dim=[width, depth, height], timestep=timestep, transparency=[0.1 for t = 1:length(timestep)], body_scale=0.75, arrow_scale=0.25)
-
+ghost(vis, satellite, q_sol, dim=satellite.dim, timestep=timestep, transparency=[0.1 for t = 1:length(timestep)], body_scale=0.75)

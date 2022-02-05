@@ -33,7 +33,6 @@ end
 
 # implicit midpoint dynamics 
 function dynamics(model::Satellite, h, J, y, x, u, w)
-      h = 0.05 # timestep 
       y - (x + h * dynamics(model, J, 0.5 * (x + y), u, w))
 end
 
