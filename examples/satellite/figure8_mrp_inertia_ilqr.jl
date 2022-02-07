@@ -123,8 +123,8 @@ iLQR.initialize_states!(p, x̄)
 @time iLQR.solve!(p, 
     linesearch=:armijo,
     α_min=1.0e-5,
-    obj_tol=1.0e-3,
-    grad_tol=1.0e-3,
+    obj_tol=1.0e-2,
+    grad_tol=1.0e-2,
     con_tol=0.001,
     max_iter=25,
     max_al_iter=10,
@@ -143,10 +143,10 @@ x_sol, u_sol = iLQR.get_trajectory(p)
 @show norm(goal(p.m_data.x[T], zeros(0), zeros(0)), Inf)
 
 # ## state
-plot(hcat(x_sol...)', label = "", color = :orange, width=2.0)
+plot(hcat([x[1:nx] for x in x_sol]...)', label = "", color = :orange, width=2.0)
 
 # ## control
-plot(hcat(u_sol..., u_sol[end])', linetype = :steppost)
+plot(hcat([u[1:nu] for u in u_sol]..., u_sol[end][1:nu])', linetype = :steppost)
 
 # ## 
 p_sol = [kinematics(satellite, x[1:3]) for x in x_sol]

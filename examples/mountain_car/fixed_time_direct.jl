@@ -14,7 +14,6 @@ include("model.jl")
 
 nx = mountain_car.nx
 nu = mountain_car.nu
-nw = mountain_car.nw
 
 # ## horizon 
 T = 201
@@ -31,13 +30,13 @@ xT = [0.5; 0.0]
 
 # ## objective 
 function ot(x, u, w) 
-    0.0 * dot(x - xT, x - xT) + 1.0e-3 * dot(u, u)
+    1.0e-4 * dot(u, u)
 end
 function oT(x, u, w) 
-    0.0 * dot(x - xT, x - xT)
+    0.0 
 end
-ct = DTO.Cost(ot, nx, nu, nw)
-cT = DTO.Cost(oT, nx, 0, nw)
+ct = DTO.Cost(ot, nx, nu)
+cT = DTO.Cost(oT, nx, 0)
 obj = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
@@ -45,8 +44,8 @@ ul = -1.0 * ones(nu)
 uu = 1.0 * ones(nu)
 xl = [-1.2; -0.07] 
 xu = [0.6; 0.07]
-xTl = [0.5; -0.07]
-xTu = [Inf; 0.07]
+xTl = [0.6; -0.07]
+xTu = [1.0; 0.07]
 bnd1 = DTO.Bound(nx, nu, xl=x1, xu=x1, ul=ul, uu=uu)
 bndt = DTO.Bound(nx, nu, xl=xl, xu=xu, ul=ul, uu=uu)
 bndT = DTO.Bound(nx, 0,  xl=xTl, xu=xTu)
@@ -55,8 +54,8 @@ bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 cons = [DTO.Constraint() for t = 1:T]
 
 # ## problem 
-p = DTO.ProblemData(obj, dyn, cons, bnds, 
-    options=DTO.Options(tol=1.0e-3, constr_viol_tol=1.0e-3))
+p = DTO.solver(dyn, obj, cons, bnds, 
+    options=DTO.Options(tol=1.0e-2, constr_viol_tol=1.0e-2))
 
 # ## initialize
 DTO.initialize_controls!(p, [1.0 * randn(nu) for t = 1:T-1])
@@ -69,6 +68,7 @@ DTO.initialize_states!(p, [x1 for t = 1:T])
 x_sol, u_sol = DTO.get_trajectory(p)
 @show x_sol[1]
 @show x_sol[T]
+@show DTO.eval_obj(obj, x_sol, [u_sol..., 0], p.nlp.trajopt.w)
 
 # ## state
 plot(hcat(x_sol...)', label = "", color = :orange, width=2.0)

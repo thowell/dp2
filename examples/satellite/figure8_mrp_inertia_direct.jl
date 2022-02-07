@@ -14,7 +14,6 @@ include("model_mrp.jl")
 
 nx = satellite.nx
 nu = satellite.nu
-nw = satellite.nw
 nθ = 3
 
 # ## horizon 
@@ -58,9 +57,9 @@ for t = 1:T-1
         ω = x[3 .+ (1:3)]
         k = kinematics(satellite, r)
         J = (t == 1 ? Diagonal(u[nu .+ (1:nθ)]) : Diagonal(x[nx .+ (1:nθ)]))
-        0.5 * transpose(ω) * J * ω + 0.5 * dot(u, u) + 0.5 * dot(k - ref[t], k - ref[t])
+        0.5 * transpose(ω) * J * ω + 0.5 * dot(u[1:nu], u[1:nu]) + 0.5 * dot(k - ref[t], k - ref[t])
     end
-    push!(obj, DTO.Cost(ot, nx + (t == 1 ? 0 : nθ), nu + (t == 1 ? nθ : 0), nw))
+    push!(obj, DTO.Cost(ot, nx + (t == 1 ? 0 : nθ), nu + (t == 1 ? nθ : 0)))
 end
 
 function oT(x, u, w)
@@ -71,7 +70,7 @@ function oT(x, u, w)
     0.5 * transpose(ω) * J * ω + 0.5 * dot(k - ref[T], k - ref[T])
 end
 
-push!(obj, DTO.Cost(oT, nx + nθ, 0, nw))
+push!(obj, DTO.Cost(oT, nx + nθ, 0))
 
 # ## constraints
 ul = -10.0 * ones(nu) 
@@ -91,16 +90,16 @@ for t = 1:T
                 kinematics(satellite, x[1:3]) - ref[t];
             ]
         end
-        push!(cons, DTO.Constraint(constraint, nx, nu, 0))
+        push!(cons, DTO.Constraint(constraint, nx + (t == 1 ? 0 : nθ), nu + (t == 1 ? nθ : 0)))
     else 
         push!(cons, DTO.Constraint())
     end
 end
 
 # ## problem 
-p = DTO.ProblemData(obj, dyn, cons, bnds, options=Options(
-        tol=1.0e-3,
-        constr_viol_tol=1.0e-3))
+p = DTO.solver(dyn, obj, cons, bnds, options=Options(
+        tol=1.0e-2,
+        constr_viol_tol=1.0e-2))
     
 # ## initialize
 J_init = diag(satellite.J)

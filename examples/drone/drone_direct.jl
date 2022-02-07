@@ -14,7 +14,6 @@ include("model_drone.jl")
 
 nx = drone.nx
 nu = drone.nu
-nw = drone.nw
 
 # ## initialization
 x1 = [0.0; 0.0; 0.0; 0.0; 0.0; 0.0] 
@@ -108,7 +107,7 @@ function ot(x, u, w)
     q = [10.0, 10.0, 10.0, 1.0, 1.0, 1.0]
     ex = x[1:nx] - xT
     J += 0.5 * transpose(ex) * Diagonal(q) * ex 
-    J += 1.0e-2 * dot(u - u_hover, u_hover) 
+    J += 1.0e-2 * dot(u[1:nu] - u_hover, u[1:nu] - u_hover) 
     J += 1.0e-1 * dot(x[nx .+ (1:nθ)], x[nx .+ (1:nθ)])
     return J 
 end
@@ -118,7 +117,7 @@ function ott(x, u, w)
     q = [100.0, 100.0, 100.0, 1.0, 1.0, 1.0]
     ex = x[1:nx] - xT
     J += 0.5 * transpose(ex) * Diagonal(q) * ex 
-    J += 1.0e-2 * dot(u - u_hover, u_hover) 
+    J += 1.0e-2 * dot(u[1:nu] - u_hover, u[1:nu] - u_hover) 
     J += 1.0e-1 * dot(x[nx .+ (1:nθ)], x[nx .+ (1:nθ)])
     return J 
 end
@@ -132,10 +131,10 @@ function oT(x, u, w)
     return J 
 end
 
-c1 = DTO.Cost(o1, nx, nu + nθ, nw)
-ct = DTO.Cost(ot, nx + nθ, nu, nw)
-ctt = DTO.Cost(ott, nx + nθ, nu, nw)
-cT = DTO.Cost(oT, nx + nθ, 0, nw)
+c1 = DTO.Cost(o1, nx, nu + nθ)
+ct = DTO.Cost(ot, nx + nθ, nu)
+ctt = DTO.Cost(ott, nx + nθ, nu)
+cT = DTO.Cost(oT, nx + nθ, 0)
 obj = [c1, [ct for t = 2:16]..., [ctt for t = 17:(T - 1)]..., cT]
 
 # ## constraints
@@ -156,16 +155,16 @@ function policyt(x, u, w)
     u[1:nu] - policy(θ, x[1:nx], xT)
 end
 
-con_policy1 = DTO.Constraint(policy1, nx, nu + nθ, nw)
-con_policyt = DTO.Constraint(policyt, nx + nθ, nu, nw)
+con_policy1 = DTO.Constraint(policy1, nx, nu + nθ)
+con_policyt = DTO.Constraint(policyt, nx + nθ, nu)
 
 cons = [con_policy1, [con_policyt for t = 2:T-1]..., DTO.Constraint()]
 
 # ## problem 
-p = DTO.ProblemData(obj, dyn, cons, bnds,  
+p = DTO.solver(dyn, obj, cons, bnds,  
     options=DTO.Options(
-        tol=1.0e-3,
-        constr_viol_tol=1.0e-3))
+        tol=1.0e-2,
+        constr_viol_tol=1.0e-2))
 
 # ## initialize
 θ0 = 0.001 * randn(nθ)
@@ -204,7 +203,7 @@ visualize_drone!(vis, drone, [x_sol], [[u_hover, u_sol...]]; Δt=h, xT=[xT])
 x_hist = [x1] 
 u_hist = [u_hover]
 
-for t = 1:T-1 
+for t = 1:(2 * T)
     push!(u_hist, policy(θ_sol, x_hist[end], [1.0, 1.0, 0.0, 0.0, 0.0, 0.0]))
     push!(x_hist, dynamics(drone, h, x_hist[end], u_hist[end], zeros(nw)))
 end

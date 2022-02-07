@@ -4,8 +4,8 @@
 
 # ## Setup
 
-using DirectTrajectoryOptimization 
-const DTO = DirectTrajectoryOptimization
+using IterativeLQR 
+const iLQR = IterativeLQR
 using LinearAlgebra
 using Plots
 # using JLD2
@@ -16,11 +16,9 @@ include("model_drone.jl")
 N = 8
 nx = drone.nx
 nu = drone.nu
-nw = drone.nw
 
 Nx = nx * N 
 Nu = nu * N 
-Nw = nw * N 
 
 # ## initialization
 θ_angle = 0.25
@@ -101,43 +99,39 @@ function policy(θ, x, goal)
 end
 
 # ## horizon 
-T = 31
+T = 41
 
 # ## model
 h = 0.05
 
-function f1(y, x, u, w)
+function f1(x, u, w)
     ui = [u[nu * (i - 1) .+ (1:nu)] for i = 1:N]
     xi = [x[nx * (i - 1) .+ (1:nx)] for i = 1:N] 
-    yi = [y[nx * (i - 1) .+ (1:nx)] for i = 1:N]
     wi = [w[nw * (i - 1) .+ (1:nw)] for i = 1:N]
 
     θ = u[Nu .+ (1:nθ)] 
-    yθ = y[Nx .+ (1:nθ)]
 
     [
-        vcat([dynamics(drone, h, yi[i], xi[i], ui[i], wi[i]) for i = 1:N]...)
-        yθ - θ;
+        vcat([dynamics(drone, h, xi[i], ui[i], wi[i]) for i = 1:N]...)
+        θ;
     ]
 end
 
-function ft(y, x, u, w)
+function ft(x, u, w)
     ui = [u[nu * (i - 1) .+ (1:nu)] for i = 1:N]
     xi = [x[nx * (i - 1) .+ (1:nx)] for i = 1:N] 
-    yi = [y[nx * (i - 1) .+ (1:nx)] for i = 1:N]
     wi = [w[nw * (i - 1) .+ (1:nw)] for i = 1:N]
 
     θ = x[Nx .+ (1:nθ)] 
-    yθ = y[Nx .+ (1:nθ)]
 
     [
-        vcat([dynamics(drone, h, yi[i], xi[i], ui[i], wi[i]) for i = 1:N]...)
-        yθ - θ;
+        vcat([dynamics(drone, h, xi[i], ui[i], wi[i]) for i = 1:N]...)
+        θ;
     ]
 end
 
-dyn1 = DTO.Dynamics(f1, Nx + nθ, Nx, Nu + nθ)
-dynt = DTO.Dynamics(ft, Nx + nθ, Nx + nθ, Nu)
+dyn1 = iLQR.Dynamics(f1, Nx, Nu + nθ)
+dynt = iLQR.Dynamics(ft, Nx + nθ, Nu)
 
 dyn = [dyn1, [dynt for t = 2:T-1]...]
 
@@ -145,7 +139,6 @@ dyn = [dyn1, [dynt for t = 2:T-1]...]
 function o1(x, u, w)
     ui = [u[nu * (i - 1) .+ (1:nu)] for i = 1:N]
     xi = [x[nx * (i - 1) .+ (1:nx)] for i = 1:N] 
-    wi = [w[nw * (i - 1) .+ (1:nw)] for i = 1:N]
     θ = u[Nu .+ (1:nθ)] 
 
     J = 0.0
@@ -154,124 +147,134 @@ function o1(x, u, w)
         ex = xi[i] - xT[i]
         eu = ui[i] - u_hover
         J += transpose(ex) * Diagonal(q) * ex  ./ N
-        J += 1.0e-2 * dot(eu, eu) ./ N
+        J += 1.0 * dot(eu, eu) ./ N
     end
-    J += 1.0e-1 * dot(θ, θ)
+    J += 1.0 * dot(θ, θ)
     return J
 end
 
 function ot(x, u, w) 
     ui = [u[nu * (i - 1) .+ (1:nu)] for i = 1:N]
     xi = [x[nx * (i - 1) .+ (1:nx)] for i = 1:N] 
-    wi = [w[nw * (i - 1) .+ (1:nw)] for i = 1:N]
     θ = x[Nx .+ (1:nθ)] 
 
     J = 0.0
-    q = [10.0, 10.0, 10.0, 1.0, 1.0, 1.0]
+    q = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     for i = 1:N
         ex = xi[i] - xT[i]
         eu = ui[i] - u_hover
         J += transpose(ex) * Diagonal(q) * ex  ./ N
-        J += 1.0e-2 * dot(eu, eu) 
+        J += 1.0 * dot(eu, eu) 
     end
-    J += 1.0e-1 * dot(θ, θ)
+    J += 1.0 * dot(θ, θ)
     return J 
 end
 
 function ott(x, u, w) 
     ui = [u[nu * (i - 1) .+ (1:nu)] for i = 1:N]
     xi = [x[nx * (i - 1) .+ (1:nx)] for i = 1:N] 
-    wi = [w[nw * (i - 1) .+ (1:nw)] for i = 1:N]
     θ = x[Nx .+ (1:nθ)] 
 
     J = 0.0
-    q = [1000.0; 1000.0; 1000.0; 100.0; 100.0; 100.0]
+    q = [1.0; 1.0; 1.0; 1.0; 1.0; 1.0]
     for i = 1:N
         ex = xi[i] - xT[i]
         eu = ui[i] - u_hover
         J += transpose(ex) * Diagonal(q) * ex  ./ N
-        J += 1.0e-2 * dot(eu, eu) 
+        J += 1.0 * dot(eu, eu) 
     end
-    J += 1.0e-1 * dot(θ, θ)
+    J += 1.0 * dot(θ, θ)
     return J 
 end
 
 function oT(x, u, w) 
     xi = [x[nx * (i - 1) .+ (1:nx)] for i = 1:N] 
-    wi = [w[nw * (i - 1) .+ (1:nw)] for i = 1:N]
     θ = x[Nx .+ (1:nθ)]
 
     J = 0.0
-    q = [1000.0; 1000.0; 1500.0; 1000.0; 1000.0; 1000.0]
-    for i = 1:N
-        ex = xi[i] - xT[i]
-        J += transpose(ex) * Diagonal(q) * ex  ./ N
-    end
-    J += 1.0e-1 * dot(θ, θ)
+    # q = [1000.0; 1000.0; 1500.0; 1000.0; 1000.0; 1000.0]
+    # for i = 1:N
+    #     # ex = xi[i] - xT[i]
+    #     # J += transpose(ex) * Diagonal(q) * ex  ./ N
+    # end
+    J += 1.0 * dot(θ, θ)
     return J 
 end
 
-c1 = DTO.Cost(o1, Nx, Nu + nθ, Nw)
-ct = DTO.Cost(ot, Nx + nθ, Nu, Nw)
-ctt = DTO.Cost(ott, Nx + nθ, Nu, Nw)
-cT = DTO.Cost(oT, Nx + nθ, 0, Nw)
-obj = [c1, [ct for t = 2:15]..., [ctt for t = 16:(T-1)]..., cT]
+c1 = iLQR.Cost(o1, Nx, Nu + nθ)
+ct = iLQR.Cost(ot, Nx + nθ, Nu)
+ctt = iLQR.Cost(ott, Nx + nθ, Nu)
+cT = iLQR.Cost(oT, Nx + nθ, 0)
+obj = [c1, [ct for t = 2:20]..., [ctt for t = 21:(T-1)]..., cT]
 
 # ## constraints
 ul = [0.0; -0.5 * π; 0.0; -0.5 * π]  
-uu = [10.0; 0.5 * π; 10.0; 0.5 * π]
+uu = [100.0; 0.5 * π; 100.0; 0.5 * π]
 Ul = vcat([ul for i = 1:N]...) 
 Uu = vcat([uu for i = 1:N]...)
-bnd1 = DTO.Bound(Nx, Nu + nθ, xl=X1, xu=X1, ul=[Ul; -Inf * ones(nθ)], uu=[Uu; Inf * ones(nθ)])
-bndt = DTO.Bound(Nx + nθ, Nu, ul=Ul, uu=Uu)
-bndT = DTO.Bound(Nx + nθ, 0)#, xl=[XT; -Inf * ones(nθ)], xu=[XT; Inf * ones(nθ)])
-bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
 function policy1(x, u, w) 
     ui = [u[nu * (i - 1) .+ (1:nu)] for i = 1:N]
     xi = [x[nx * (i - 1) .+ (1:nx)] for i = 1:N] 
     θ = u[Nu .+ (1:nθ)]
-    vcat([ui[i] - policy(θ, xi[i], xT[i]) for i = 1:N]...)
+    [
+        Ul - u[1:Nu];
+        u[1:Nu] - Uu;
+        vcat([ui[i] - policy(θ, xi[i], xT[i]) for i = 1:N]...)
+    ]
 end
 
 function policyt(x, u, w) 
     ui = [u[nu * (i - 1) .+ (1:nu)] for i = 1:N]
     xi = [x[nx * (i - 1) .+ (1:nx)] for i = 1:N] 
     θ = x[Nx .+ (1:nθ)]
-    vcat([ui[i] - policy(θ, xi[i], xT[i]) for i = 1:N]...)
+    [
+        Ul - u[1:Nu];
+        u[1:Nu] - Uu;
+        vcat([ui[i] - policy(θ, xi[i], xT[i]) for i = 1:N]...)
+    ]
 end
 
-con_policy1 = DTO.Constraint(policy1, Nx, Nu + nθ, Nw)
-con_policyt = DTO.Constraint(policyt, Nx + nθ, Nu, Nw)
+function goal(x, u, w) 
+    x[1:Nx] - XT[1:Nx]
+end
 
-cons = [con_policy1, [con_policyt for t = 2:(T - 1)]..., DTO.Constraint()]
+con_policy1 = iLQR.Constraint(policy1, Nx, Nu + nθ, idx_ineq=collect(1:2Nu))
+con_policyt = iLQR.Constraint(policyt, Nx + nθ, Nu, idx_ineq=collect(1:2Nu))
+
+cons = [con_policy1, [con_policyt for t = 2:(T - 1)]..., iLQR.Constraint(goal, Nx + nθ, 0)]
 
 # ## problem 
-p = DTO.ProblemData(obj, dyn, cons, bnds,
-    options=DTO.Options(
-        max_cpu_time=2500.0,
-        max_iter=2500,
-        tol=1.0e-3,
-        constr_viol_tol=1.0e-3))
+p = iLQR.problem_data(dyn, obj, cons)
 
 # ## initialize
 θ0 = 1.0 * randn(nθ)
 U_hover = vcat([u_hover for i = 1:N]...)
 u_guess = [[U_hover; θ0], [U_hover for t = 2:T-1]...]
-x_guess = [t == 1 ? X1 : [X1; θ0] for t = 1:T]
-DTO.initialize_controls!(p, u_guess)
-DTO.initialize_states!(p, x_guess)
+x_guess = iLQR.rollout(dyn, X1, u_guess)
+
+iLQR.initialize_controls!(p, u_guess)
+iLQR.initialize_states!(p, x_guess)
 
 # ## solve
-@time DTO.solve!(p)
+@time iLQR.solve!(p,
+    linesearch=:armijo,
+    α_min=1.0e-8,
+    obj_tol=1.0e-3,
+    grad_tol=1.0e-3,
+    con_tol=0.1, # doesn't need to be tight for good policies
+    max_iter=250,
+    max_al_iter=10,
+    verbose=true)
 
 # ## solution
-x_sol, u_sol = DTO.get_trajectory(p)
+x_sol, u_sol = iLQR.get_trajectory(p)
 X_sol = [[x[(i - 1) * nx .+ (1:nx)] for x in x_sol] for i = 1:N]
 U_sol = [[u_hover, [u[(i - 1) * nu .+ (1:nu)] for u in u_sol]...] for i = 1:N]
 @show θ_sol = u_sol[1][Nu .+ (1:nθ)]
 @show x_sol[2][Nx .+ (1:nθ)]
 θ_sol - x_sol[2][Nx .+ (1:nθ)]
+
 # # ## state
 # plt = plot();
 # for i = 1:N
@@ -280,11 +283,11 @@ U_sol = [[u_hover, [u[(i - 1) * nu .+ (1:nu)] for u in u_sol]...] for i = 1:N]
 # display(plt) 
 
 # # ## control
-# plt = plot();
-# for i = 1:N
-#     plt = plot!(hcat(U_sol[i]..., U_sol[i][end])', linetype = :steppost)
-# end
-# display(plt) 
+plt = plot();
+for i = 1:N
+    plt = plot!(hcat(U_sol[i]..., U_sol[i][end])', linetype = :steppost)
+end
+display(plt) 
 
 # # ## plot xy 
 # plt = plot(); 
@@ -300,11 +303,11 @@ open(vis)
 visualize_drone!(vis, drone, X_sol, U_sol; Δt=h, xT=xT)
 
 # ## simulate policy 
-i = 5
+i = 8
 x_init = x1[i] 
 x_goal = xT[i]
-# x_init = [0.0; -0.6; 0.0; 0.0; 0.0; 0.0]
-# x_goal = [0.5; 0.5; 0.0; 0.0; 0.0; 0.0]
+x_init = [-1.0; -0.0; 0.0; 0.0; 0.0; 0.0]
+x_goal = [0.25; -0.5; 0.0; 0.0; 0.0; 0.0]
 x_hist = [x_init] 
 u_hist = [u_hover]
 
@@ -316,5 +319,5 @@ end
 visualize_drone!(vis, drone, [x_hist], [u_hist]; Δt=h, xT=[x_goal])
 
 # ## save policy
-# @save joinpath(@__DIR__, "policy.jld2") θ_sol
+# @save joinpath(@__DIR__, "policy_ilqr.jld2") θ_sol
 # @load joinpath(@__DIR__, "policy.jld2") θ_sol

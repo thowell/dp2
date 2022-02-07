@@ -51,7 +51,7 @@ function visualize_drone!(vis, model::Drone, Q, U;
     # set camera
     settransform!(vis["/Cameras/default"],
         compose(Translation(0.0, -50.0, -1.0), LinearMap(RotZ(- pi / 2))))
-    setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 30)
+    setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 20)
 
     MeshCat.setanimation!(vis,anim)
 end
