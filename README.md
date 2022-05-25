@@ -1,4 +1,4 @@
-# Parameter + Trajectory Optimization
+# Deterministic Parameter Dynamic Programming (DP^2)
 This repository contains experiments combining parameter and trajectory optimization.
 
 ## Satellite 
